@@ -1,0 +1,7 @@
+megs: 32
+romimage: file=/usr/share/bochs/BIOS-bochs-latest
+vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
+boot: cdrom
+ata0-master: type=cdrom, path=vortexos.iso, status=inserted
+log: bochsout.txt
+keyboard: type=mf, serial_delay=250
