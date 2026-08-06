@@ -2,8 +2,10 @@
 CC = gcc
 CFLAGS = -m32 -Wall -Wextra -std=c99 -ffreestanding \
          -nostdlib -nostartfiles -nodefaultlibs \
-         -I src/lib/include \
-         -I src/include 
+         -I src/lib \
+         -I src/include \
+         -I src/drivers \
+         -I src/kernel
 LD = ld
 LDFLAGS = -m elf_i386 -T linker.ld
 AS = nasm

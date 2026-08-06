@@ -10,7 +10,6 @@ static uint8_t currentColor = 0;
 void vgaInit(void) {
     currentColor = vgaEntryColor(COLOR_LIGHT_GREY, COLOR_BLACK);
     vgaClear();
-    vgaSetCursorPos(0, 0);
 }
 
 uint8_t vgaGetCursorRow(void) {
@@ -24,9 +23,7 @@ uint8_t vgaGetCursorCol(void) {
 void vgaSetCursorPos(uint8_t row, uint8_t col) {
     cursorRow = row;
     cursorCol = col;
-
     uint16_t pos = row * VGA_WIDTH + col;
-    
     outb(VGA_CTRL_REG, VGA_CURSOR_HI);
     outb(VGA_DATA_REG, (pos >> 8) & 0xFF);
     outb(VGA_CTRL_REG, VGA_CURSOR_LO);
@@ -39,7 +36,7 @@ void vgaGetCursorPos(uint8_t* row, uint8_t* col) {
 }
 
 void vgaPutColor(void) {
-    size_t index = cursorCol * VGA_WIDTH + cursorRow;
+    size_t index = cursorRow * VGA_WIDTH + cursorCol;
     uint16_t entry = videoMemory[index];
     uint8_t ch = entry & 0xFF;
     videoMemory[index] = vgaEntry(ch, currentColor);
@@ -64,14 +61,14 @@ void vgaPutColorRange(uint8_t row, uint8_t startCol, uint8_t endCol) {
 }
 
 void vgaClear(void) {
-    for (int col = 0; col < VGA_HEIGHT; col++) {
-        for (int row = 0; row < VGA_WIDTH; row++) {
-            // size_t index = row * VGA_WIDTH + col;
-            // videoMemory[index] = vgaEntry(' ', currentColor);
-            vgaSetCursorPos(row,col);
-            vgaPutChar(' ');
+    for (int row = 0; row < VGA_HEIGHT; row++) {
+        for (int col = 0; col < VGA_WIDTH; col++) {
+            size_t index = row * VGA_WIDTH + col;
+            videoMemory[index] = vgaEntry(' ', currentColor);
         }
     }
+    cursorRow = 0;
+    cursorCol = 0;
     vgaSetCursorPos(0, 0);
 }
 
@@ -81,49 +78,49 @@ void vgaPutChar(char c) {
 
 void vgaPutCharColor(char c, uint8_t color) {
     if (c == '\n') {
-        cursorRow = 0;
-        cursorCol++;
-        if (cursorCol >= VGA_HEIGHT) {
+        cursorCol = 0;
+        cursorRow++;
+        if (cursorRow >= VGA_HEIGHT) {
             vgaScroll(1);
-            cursorCol = VGA_HEIGHT - 1;
+            cursorRow = VGA_HEIGHT - 1;
         }
         vgaSetCursorPos(cursorRow, cursorCol);
         return;
     }
-    
+
     if (c == '\t') {
         do {
             vgaPutCharColor(' ', color);
-        } while (cursorRow % 4 != 0);
+        } while (cursorCol % 4 != 0);
         return;
     }
-    
+
     if (c == '\r') {
-        cursorRow = 0;
+        cursorCol = 0;
         vgaSetCursorPos(cursorRow, cursorCol);
         return;
     }
-    
+
     if (c == '\b') {
-        if (cursorRow > 0) {
-            cursorRow--;
-            size_t index = cursorCol * VGA_WIDTH + cursorRow;
+        if (cursorCol > 0) {
+            cursorCol--;
+            size_t index = cursorRow * VGA_WIDTH + cursorCol;
             videoMemory[index] = vgaEntry(' ', color);
             vgaSetCursorPos(cursorRow, cursorCol);
         }
         return;
     }
 
-    size_t index = cursorCol * VGA_WIDTH + cursorRow;
+    size_t index = cursorRow * VGA_WIDTH + cursorCol;
     videoMemory[index] = vgaEntry(c, color);
-    
-    cursorRow++;
-    if (cursorRow >= VGA_WIDTH) {
-        cursorRow = 0;
-        cursorCol++;
-        if (cursorCol >= VGA_HEIGHT) {
+
+    cursorCol++;
+    if (cursorCol >= VGA_WIDTH) {
+        cursorCol = 0;
+        cursorRow++;
+        if (cursorRow >= VGA_HEIGHT) {
             vgaScroll(1);
-            cursorCol = VGA_HEIGHT - 1;
+            cursorRow = VGA_HEIGHT - 1;
         }
     }
     vgaSetCursorPos(cursorRow, cursorCol);
@@ -147,7 +144,7 @@ void vgaScroll(uint8_t lines) {
             videoMemory[dst] = videoMemory[src];
         }
     }
-    
+
     for (int row = VGA_HEIGHT - lines; row < VGA_HEIGHT; row++) {
         for (int col = 0; col < VGA_WIDTH; col++) {
             size_t index = row * VGA_WIDTH + col;

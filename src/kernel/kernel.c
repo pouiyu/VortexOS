@@ -1,225 +1,399 @@
-#include "idt.h"
-#include <drivers/keyboard.h>
-#include <drivers/sound.h>
+#include "interruption/idt.h"
+#include <keyboard.h>
+#include <sound.h>
 #include <vga.h>
 #include <string.h>
+#include <kernel.h>
+#include <sysinfo/sysinfo.h>
+#include <sysinfo/config.h>
+#include <shell/shell.h>
+#include <shell/commands.h>
+#include "device.h"
 
-#define THEME1 VGA_COLOR(COLOR_WHITE, COLOR_BLACK)
-uint8_t theme = THEME1;
+uint8_t FG = COLOR_WHITE;
+uint8_t BG = COLOR_BLACK;
+uint8_t theme;
+
+#define MENU_STACK_SIZE 16
+
+static const char* const ColorOptions[] = {
+    "Black",
+    "Blue",
+    "Green",
+    "Cyan",
+    "Red",
+    "Magenta",
+    "Brown",
+    "Light Gray",
+    "Dark Gray",
+    "Light Blue",
+    "Light Green",
+    "Light Cyan",
+    "Light Red",
+    "Light Magenta",
+    "Yellow",
+    "White"
+};
+
+#define COLOR_COUNT (sizeof(ColorOptions) / sizeof(ColorOptions[0]))
 
 typedef enum {
     MENU_MAIN,
     MENU_SETTINGS,
-    MENU_CONFIRM
+    MENU_SETTINGS_ABOUT,
+    MENU_SETTINGS_ABOUT_SYSTEM,
+    MENU_SETTINGS_ABOUT_DEVICE,
+    MENU_SETTINGS_THEME,
+    MENU_SETTINGS_THEME_FG,
+    MENU_SETTINGS_THEME_BG,
+    MENU_CONFIRM_REBOOT,
+    MENU_CONFIRM_SHUTDOWN
 } MenuState;
 
-MenuState currentMenu = MENU_MAIN;
-int selectedIndex = 0;
-int selectIndex = -1;
+typedef struct {
+    MenuState menu;
+    int selectedIndex;
+} MenuFrame;
 
-// ==================== 菜单项 ====================
-char* mainOptions[] = {
+static MenuFrame menuStack[MENU_STACK_SIZE];
+static int menuStackPtr = -1;
+
+static MenuState currentMenu = MENU_MAIN;
+static int selectedIndex = 0;
+static int selectIndex = -1;
+
+static const char* const mainOptions[] = {
     "Settings",
+    "Shell",
     "Reboot",
     "Shutdown"
 };
 
-char* settingsOptions[] = {
-    "Sound: ON",
-    "Theme: White",
+static const char* const settingsOptions[] = {
+    "About",
+    "Theme",
     "Back"
 };
 
-char* confirmOptions[] = {
+static const char* const aboutOptions[] = {
+    "System Info",
+    "Device Info",
+    "Back"
+};
+
+static const char* const themeOptions[] = {
+    "Foreground",
+    "Background",
+    "Back"
+};
+
+static const char* const confirmOptions[] = {
     "Yes",
     "No"
 };
 
-// ==================== 菜单大小 ====================
-#define MAIN_SIZE    (sizeof(mainOptions) / sizeof(mainOptions[0]))
-#define SETTINGS_SIZE (sizeof(settingsOptions) / sizeof(settingsOptions[0]))
-#define CONFIRM_SIZE  (sizeof(confirmOptions) / sizeof(confirmOptions[0]))
+#define MAIN_SIZE       (sizeof(mainOptions)     / sizeof(mainOptions[0]))
+#define SETTINGS_SIZE   (sizeof(settingsOptions) / sizeof(settingsOptions[0]))
+#define ABOUT_SIZE      (sizeof(aboutOptions)    / sizeof(aboutOptions[0]))
+#define THEME_SIZE      (sizeof(themeOptions)    / sizeof(themeOptions[0]))
+#define CONFIRM_SIZE    (sizeof(confirmOptions)  / sizeof(confirmOptions[0]))
 
-// ==================== 获取当前菜单 ====================
-char** getCurrentOptions(void) {
-    switch (currentMenu) {
-        case MENU_MAIN:     return mainOptions;
-        case MENU_SETTINGS: return settingsOptions;
-        case MENU_CONFIRM:  return confirmOptions;
-        default:            return mainOptions;
+static void pushMenu(MenuState menu, int index) {
+    if (menuStackPtr < MENU_STACK_SIZE - 1) {
+        menuStackPtr++;
+        menuStack[menuStackPtr].menu = currentMenu;
+        menuStack[menuStackPtr].selectedIndex = selectedIndex;
     }
+    currentMenu = menu;
+    selectedIndex = index;
+    selectIndex = -1;
 }
 
-int getCurrentSize(void) {
-    switch (currentMenu) {
-        case MENU_MAIN:     return MAIN_SIZE;
-        case MENU_SETTINGS: return SETTINGS_SIZE;
-        case MENU_CONFIRM:  return CONFIRM_SIZE;
-        default:            return MAIN_SIZE;
+static bool popMenu(void) {
+    if (menuStackPtr >= 0) {
+        currentMenu = menuStack[menuStackPtr].menu;
+        selectedIndex = menuStack[menuStackPtr].selectedIndex;
+        selectIndex = -1;
+        menuStackPtr--;
+        return true;
     }
+    return false;
 }
 
-// ==================== 辅助函数 ====================
-static inline void vgaSetColorByte(uint8_t color) {
-    uint8_t fg = color & 0x0F;
-    uint8_t bg = (color >> 4) & 0x0F;
-    vgaSetColor(fg, bg);
-}
-
-static inline uint8_t getCursorCol(void) {
-    uint8_t row, col;
-    vgaGetCursorPos(&row, &col);
-    return col;
-}
-
-void putOption(const char* text, bool hover) {
-    int textLen = strlen(text);
-    uint8_t col = getCursorCol();
-
-    if (hover) {
-        vgaSetColorByte(vgaInvertColor(theme));
-    } else {
-        vgaSetColorByte(theme);
-    }
-
-    int remaining = VGA_WIDTH;
-    if (remaining > 0) {
-        for (int i = 0; i < remaining; i++) {
-            vgaPutChar(' ');
-        }
-    }
-
-    vgaSetCursorPos(0, col);
-    vgaPutStr(text);
+static void updateTheme(void) {
+    theme = VGA_COLOR(FG, BG);
     vgaSetColorByte(theme);
+}
+
+static const char* const* getCurrentOptions(void) {
+    switch (currentMenu) {
+        case MENU_MAIN:               return mainOptions;
+        case MENU_SETTINGS:           return settingsOptions;
+        case MENU_SETTINGS_ABOUT:     return aboutOptions;
+        case MENU_SETTINGS_THEME:     return themeOptions;
+        case MENU_SETTINGS_THEME_FG:
+        case MENU_SETTINGS_THEME_BG:  return ColorOptions;
+        case MENU_CONFIRM_REBOOT:
+        case MENU_CONFIRM_SHUTDOWN:   return confirmOptions;
+        default:                      return NULL;
+    }
+}
+
+static int getCurrentSize(void) {
+    switch (currentMenu) {
+        case MENU_MAIN:               return MAIN_SIZE;
+        case MENU_SETTINGS:           return SETTINGS_SIZE;
+        case MENU_SETTINGS_ABOUT:     return ABOUT_SIZE;
+        case MENU_SETTINGS_THEME:     return THEME_SIZE;
+        case MENU_SETTINGS_THEME_FG:
+        case MENU_SETTINGS_THEME_BG:  return COLOR_COUNT;
+        case MENU_CONFIRM_REBOOT:
+        case MENU_CONFIRM_SHUTDOWN:   return CONFIRM_SIZE;
+        default:                      return 0;
+    }
+}
+
+void vgaSetColorByte(uint8_t color) {
+    vgaSetColor(color & 0x0F, (color >> 4) & 0x0F);
 }
 
 void drawTitle(const char* title) {
     vgaSetCursorPos(0, 0);
     vgaSetColorByte(theme);
-    vgaPutStr("=== ");
+    vgaPutChar(' ');
     vgaPutStr(title);
-    vgaPutStr(" ===\n\n");
+    vgaPutStr(" \n\n");
 }
 
-void drawOptions(char** options, int size) {
+static void putOption(const char* text, bool hover) {
+    uint8_t row, col;
+    vgaGetCursorPos(&row, &col);
+
+    vgaSetColorByte(hover ? vgaInvertColor(theme) : theme);
+
+    for (int i = col; i < VGA_WIDTH; i++)
+        vgaPutChar(' ');
+
+    vgaSetCursorPos(row, col);
+    vgaPutStr(text);
+    vgaSetColorByte(theme);
+}
+
+static void drawOptions(const char* const* options, int size) {
     for (int i = 0; i < size; i++) {
-        vgaSetCursorPos(0, 2 + i);  // col=0, row=2+i
-        putOption(options[i], (selectedIndex == i));
+        vgaSetCursorPos(2 + i, 0);
+        putOption(options[i], selectedIndex == i);
     }
 }
 
-// ==================== 菜单绘制 ====================
 void drawMainMenu(void) {
     vgaClear();
-    drawTitle("VortexOS");
+    drawTitle(OS_NAME "OS");
     drawOptions(mainOptions, MAIN_SIZE);
 }
 
-void drawSettingsMenu(void) {
+static void drawSettingsMenu(void) {
     vgaClear();
     drawTitle("Settings");
     drawOptions(settingsOptions, SETTINGS_SIZE);
 }
 
-void drawConfirmMenu(const char* title) {
+static void drawAboutMenu(void) {
+    vgaClear();
+    drawTitle("About");
+    drawOptions(aboutOptions, ABOUT_SIZE);
+}
+
+static void drawThemeMenu(const char* label) {
+    vgaClear();
+    drawTitle(label);
+    drawOptions(ColorOptions, COLOR_COUNT);
+}
+
+static void drawThemeOptionsMenu(void) {
+    vgaClear();
+    drawTitle("Theme");
+    drawOptions(themeOptions, THEME_SIZE);
+}
+
+static void drawConfirmMenu(const char* title) {
     vgaClear();
     drawTitle(title);
     drawOptions(confirmOptions, CONFIRM_SIZE);
 }
 
-void drawCurrentMenu(void) {
+static void drawCurrentMenu(void) {
     switch (currentMenu) {
-        case MENU_MAIN:     drawMainMenu(); break;
-        case MENU_SETTINGS: drawSettingsMenu(); break;
-        case MENU_CONFIRM:  drawConfirmMenu("Confirm?"); break;
+        case MENU_MAIN:               drawMainMenu();              break;
+        case MENU_SETTINGS:           drawSettingsMenu();          break;
+        case MENU_SETTINGS_ABOUT:     drawAboutMenu();             break;
+        case MENU_SETTINGS_THEME:     drawThemeOptionsMenu();      break;
+        case MENU_SETTINGS_THEME_FG:  drawThemeMenu("Foreground Color"); break;
+        case MENU_SETTINGS_THEME_BG:  drawThemeMenu("Background Color"); break;
+        case MENU_CONFIRM_REBOOT:     drawConfirmMenu("Reboot?");  break;
+        case MENU_CONFIRM_SHUTDOWN:   drawConfirmMenu("Shutdown?"); break;
     }
 }
 
-// ==================== 菜单处理 ====================
-void handleMainMenuSelect(void) {
-    selectedIndex = 0;
+void messageBox(const char* msg) {
+    vgaPutStr(msg);
+    vgaPutStr("\n\nPress any key to return...");
+    while (!keyboardHasChar()) __asm__ volatile ("hlt");
+    keyboardGetChar();
+}
+
+static void handleMainMenuSelect(void) {
+    switch (selectIndex) {
+        case 0: pushMenu(MENU_SETTINGS, 0);         break;
+        case 1: runShell();                        break;  // Shell
+        case 2: pushMenu(MENU_CONFIRM_REBOOT, 0);    break;
+        case 3: pushMenu(MENU_CONFIRM_SHUTDOWN, 0);  break;
+    }
+    if (selectIndex != 1)  // Shell 自己刷新屏幕
+        drawCurrentMenu();
+}
+
+static void handleSettingsMenuSelect(void) {
+    switch (selectIndex) {
+        case 0:  // About
+            pushMenu(MENU_SETTINGS_ABOUT, 0);
+            drawCurrentMenu();
+            return;
+        case 1:  // Theme
+            pushMenu(MENU_SETTINGS_THEME, 0);
+            drawCurrentMenu();
+            return;
+        case 2:  // Back
+            if (!popMenu()) currentMenu = MENU_MAIN;
+            drawCurrentMenu();
+            return;
+    }
+    selectIndex = -1;
+}
+
+static void handleAboutSelect(void) {
+    switch (selectIndex) {
+        case 0:  // System Info
+            showSystemInfo();
+            break;
+        case 1:  // Device Info
+            showDeviceInfo();
+            break;
+        case 2:  // Back
+            popMenu();
+            break;
+    }
+    drawCurrentMenu();
+}
+
+static void handleThemeSelect(void) {
     switch (selectIndex) {
         case 0:
-            currentMenu = MENU_SETTINGS;
-            drawSettingsMenu();
-            break;
+            pushMenu(MENU_SETTINGS_THEME_FG, FG);
+            drawCurrentMenu();
+            return;
         case 1:
-            currentMenu = MENU_CONFIRM;
-            drawConfirmMenu("Reboot?");
-            break;
+            pushMenu(MENU_SETTINGS_THEME_BG, BG);
+            drawCurrentMenu();
+            return;
         case 2:
-            currentMenu = MENU_CONFIRM;
-            drawConfirmMenu("Shutdown?");
-            break;
-        default:
-            drawMainMenu();
-            break;
+            popMenu();
+            drawCurrentMenu();
+            return;
     }
     selectIndex = -1;
 }
 
-void handleSettingsMenuSelect(void) {
-    if (selectIndex == 2) {  // Back
-        currentMenu = MENU_MAIN;
-        selectedIndex = 0;
-        drawMainMenu();
+static void handleThemeFGSelect(void) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
+        uint8_t newFG = (uint8_t)selectIndex;
+        if (newFG == BG) {
+            vgaClear();
+            messageBox("Foreground cannot be the\nsame as background!");
+        } else {
+            FG = newFG;
+            updateTheme();
+        }
     }
-    selectIndex = -1;
+    popMenu();
+    drawCurrentMenu();
 }
 
-void handleConfirmMenuSelect(void) {
-    if (selectIndex == 0) {  // Yes
-        vgaClear();
-        vgaSetCursorPos(0, 0);
-        vgaSetColorByte(theme);
-        vgaPutStr("Action confirmed!\n");
-        while (1) { __asm__ volatile ("hlt"); }
-    } else {  // No
-        currentMenu = MENU_MAIN;
-        selectedIndex = 0;
-        drawMainMenu();
+static void handleThemeBGSelect(void) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
+        uint8_t newBG = (uint8_t)selectIndex;
+        if (newBG == FG) {
+            vgaClear();
+            messageBox("Background cannot be the\nsame as foreground!");
+        } else {
+            BG = newBG;
+            updateTheme();
+        }
     }
-    selectIndex = -1;
+    popMenu();
+    drawCurrentMenu();
 }
 
-void handleSelect(void) {
+static void handleConfirmReboot(void) {
+    if (selectIndex == 0) {
+        deviceReboot();
+    } else {
+        popMenu();
+        drawCurrentMenu();
+    }
+}
+
+static void handleConfirmShutdown(void) {
+    if (selectIndex == 0) {
+        deviceShutdown();
+    } else {
+        popMenu();
+        drawCurrentMenu();
+    }
+}
+
+static void handleSelect(void) {
     if (selectIndex == -1) return;
-    
+
     switch (currentMenu) {
-        case MENU_MAIN:     handleMainMenuSelect(); break;
-        case MENU_SETTINGS: handleSettingsMenuSelect(); break;
-        case MENU_CONFIRM:  handleConfirmMenuSelect(); break;
+        case MENU_MAIN:               handleMainMenuSelect();    break;
+        case MENU_SETTINGS:           handleSettingsMenuSelect(); break;
+        case MENU_SETTINGS_ABOUT:     handleAboutSelect();       break;
+        case MENU_SETTINGS_THEME:     handleThemeSelect();       break;
+        case MENU_SETTINGS_THEME_FG:  handleThemeFGSelect();     break;
+        case MENU_SETTINGS_THEME_BG:  handleThemeBGSelect();     break;
+        case MENU_CONFIRM_REBOOT:     handleConfirmReboot();     break;
+        case MENU_CONFIRM_SHUTDOWN:   handleConfirmShutdown();   break;
     }
 }
 
-// ==================== 主函数 ====================
 void kernel_main(unsigned int magic, unsigned int addr) {
     (void)magic;
     (void)addr;
-    
+
+    theme = VGA_COLOR(FG, BG);
+
     vgaInit();
     idtInit();
     keyboardInit();
     vgaSetColorByte(theme);
     vgaClear();
-    
     drawMainMenu();
-    
+
     __asm__ volatile ("sti");
-    
-    while (1) {
+
+    for (;;) {
         if (keyboardHasChar()) {
             char c = keyboardGetChar();
             int size = getCurrentSize();
-            
+
             if (c == KEY_UP || c == 'w' || c == 'W') {
-                selectedIndex--;
-                if (selectedIndex < 0) selectedIndex = size - 1;
+                if (--selectedIndex < 0)
+                    selectedIndex = size - 1;
                 drawCurrentMenu();
             } else if (c == KEY_DOWN || c == 's' || c == 'S') {
-                selectedIndex++;
-                if (selectedIndex >= size) selectedIndex = 0;
+                if (++selectedIndex >= size)
+                    selectedIndex = 0;
                 drawCurrentMenu();
             } else if (c == '\r' || c == '\n' || c == ' ') {
                 selectIndex = selectedIndex;

@@ -1,4 +1,4 @@
-#include <drivers/keyboard.h>
+#include <keyboard.h>
 #include <vga.h>
 #include <io.h>
 
@@ -115,20 +115,26 @@ char keyboardGetChar(void) {
     if (keyboardScancode) {
         unsigned char scancode = keyboardScancode;
         keyboardScancode = 0;
-        
-        // 检查是否是扩展键（值 >= 0x80）
+
+        // 扩展键（方向键等）
         if (scancode >= 0x80) {
-            return scancode;  // 返回特殊键码
+            return scancode;
         }
-        
-        if (scancode < 0x80) {
-            char c;
-            bool upper = shiftPressed ^ capsLockOn;
-            if (upper) {
-                c = scancodeToAsciiShift[scancode];
-            } else {
-                c = scancodeToAscii[scancode];
-            }
+
+        // 先处理特殊键，直接返回扫描码本身
+        switch (scancode) {
+            case 0x1C: return '\n';   // 回车
+            case 0x0E: return '\b';   // 退格
+            case 0x0F: return '\t';   // Tab
+            case 0x01: return 0x1B;   // Esc
+            case 0x39: return ' ';    // 空格（表中已有但确保）
+        }
+
+        // 普通可打印字符
+        bool upper = shiftPressed ^ capsLockOn;
+        char c = upper ? scancodeToAsciiShift[scancode] : scancodeToAscii[scancode];
+
+        if (c != 0) {
             return c;
         }
     }
