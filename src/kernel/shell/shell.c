@@ -10,10 +10,31 @@
 
 static char inputBuf[MAX_INPUT];
 static int  inputLen = 0;
+static int  cursorPos = 0;
 
 static const char* prompt = OS_NAME "> ";
+static int promptLen = 0;  // 提示符长度，init 时计算
 
-// shellExecute 返回 int，1 表示退出
+static void shellRedrawLine(void) {
+    uint8_t row, col;
+    vgaGetCursorPos(&row, &col);
+
+    // 回到行首（提示符末尾）
+    vgaSetCursorPos(row, promptLen);
+
+    // 清空本行剩余
+    for (int i = promptLen; i < VGA_WIDTH; i++)
+        vgaPutChar(' ');
+
+    // 重新输出输入内容
+    vgaSetCursorPos(row, promptLen);
+    for (int i = 0; i < inputLen; i++)
+        vgaPutChar(inputBuf[i]);
+
+    // 光标移到正确位置
+    vgaSetCursorPos(row, promptLen + cursorPos);
+}
+
 static int shellExecute(const char* cmd) {
     if (cmd[0] == '\0') return 0;
 
@@ -31,14 +52,13 @@ static int shellExecute(const char* cmd) {
     const shellCommand* cmds = getCommandList();
     for (int i = 0; cmds[i].name; i++) {
         if (strcmp(argv[0], cmds[i].name) == 0) {
-            int ret=cmds[i].handler(argc, argv);
+            int ret = cmds[i].handler(argc, argv);
             if (ret) {
                 vgaClear();
                 drawMainMenu();
                 return 1;
-            }else{
-                return 0;
             }
+            return 0;
         }
     }
 
@@ -49,11 +69,14 @@ static int shellExecute(const char* cmd) {
 
 void runShell(void) {
     vgaClear();
-    vgaPutStr(OS_NAME " Shell\nType \"help\" for commands, \"exit\" to return.\n\n");
+    vgaPutStrColor(OS_NAME " Shell\n", HL);
+    vgaPutStrColor("Type \"help\" for commands, \"exit\" to return.\n\n", LL);
 
+    promptLen = strlen(prompt);
     inputLen = 0;
+    cursorPos = 0;
     inputBuf[0] = '\0';
-    vgaPutStr(prompt);
+    vgaPutStrColor(prompt, HL);
 
     for (;;) {
         if (keyboardHasChar()) {
@@ -63,28 +86,46 @@ void runShell(void) {
                 vgaPutChar('\n');
                 inputBuf[inputLen] = '\0';
 
-                if (shellExecute(inputBuf) == 1) {
+                if (shellExecute(inputBuf) == 1)
                     return;
-                }
 
                 inputLen = 0;
+                cursorPos = 0;
                 inputBuf[0] = '\0';
-                vgaPutStr(prompt);
+                vgaPutStrColor(prompt, HL);
             } else if (c == '\b') {
-                if (inputLen > 0) {
+                if (cursorPos > 0 && inputLen > 0) {
+                    // 把光标后面的内容往前移
+                    for (int i = cursorPos - 1; i < inputLen - 1; i++)
+                        inputBuf[i] = inputBuf[i + 1];
                     inputLen--;
+                    cursorPos--;
+                    shellRedrawLine();
+                }
+            } else if (c == KEY_LEFT) {
+                if (cursorPos > 0) {
+                    cursorPos--;
                     uint8_t row, col;
                     vgaGetCursorPos(&row, &col);
-                    if (col > 0) {
-                        col--;
-                        vgaSetCursorPos(row, col);
-                        vgaPutChar(' ');
-                        vgaSetCursorPos(row, col);
-                    }
+                    if (col > 0) col--;
+                    vgaSetCursorPos(row, col);
+                }
+            } else if (c == KEY_RIGHT) {
+                if (cursorPos < inputLen) {
+                    cursorPos++;
+                    uint8_t row, col;
+                    vgaGetCursorPos(&row, &col);
+                    if (col < VGA_WIDTH - 1) col++;
+                    vgaSetCursorPos(row, col);
                 }
             } else if (c >= ' ' && c <= '~' && inputLen < MAX_INPUT - 1) {
-                inputBuf[inputLen++] = c;
-                vgaPutChar(c);
+                // 在 cursorPos 处插入字符
+                for (int i = inputLen; i > cursorPos; i--)
+                    inputBuf[i] = inputBuf[i - 1];
+                inputBuf[cursorPos] = c;
+                inputLen++;
+                cursorPos++;
+                shellRedrawLine();
             }
         }
         __asm__ volatile ("hlt");

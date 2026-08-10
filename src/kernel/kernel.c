@@ -12,6 +12,8 @@
 
 uint8_t FG = COLOR_WHITE;
 uint8_t BG = COLOR_BLACK;
+uint8_t HL = NULL;
+uint8_t LL = NULL;
 uint8_t theme;
 
 #define MENU_STACK_SIZE 16
@@ -41,9 +43,9 @@ typedef enum {
     MENU_MAIN,
     MENU_SETTINGS,
     MENU_SETTINGS_ABOUT,
-    MENU_SETTINGS_ABOUT_SYSTEM,
-    MENU_SETTINGS_ABOUT_DEVICE,
     MENU_SETTINGS_THEME,
+    MENU_SETTINGS_THEME_HL,   
+    MENU_SETTINGS_THEME_LL, 
     MENU_SETTINGS_THEME_FG,
     MENU_SETTINGS_THEME_BG,
     MENU_CONFIRM_REBOOT,
@@ -82,8 +84,10 @@ static const char* const aboutOptions[] = {
 };
 
 static const char* const themeOptions[] = {
-    "Foreground",
-    "Background",
+    "Highlight color",
+    "Lowlight color",
+    "Foreground color",
+    "Background color",
     "Back"
 };
 
@@ -131,6 +135,8 @@ static const char* const* getCurrentOptions(void) {
         case MENU_SETTINGS:           return settingsOptions;
         case MENU_SETTINGS_ABOUT:     return aboutOptions;
         case MENU_SETTINGS_THEME:     return themeOptions;
+        case MENU_SETTINGS_THEME_HL:
+        case MENU_SETTINGS_THEME_LL:
         case MENU_SETTINGS_THEME_FG:
         case MENU_SETTINGS_THEME_BG:  return ColorOptions;
         case MENU_CONFIRM_REBOOT:
@@ -145,6 +151,8 @@ static int getCurrentSize(void) {
         case MENU_SETTINGS:           return SETTINGS_SIZE;
         case MENU_SETTINGS_ABOUT:     return ABOUT_SIZE;
         case MENU_SETTINGS_THEME:     return THEME_SIZE;
+        case MENU_SETTINGS_THEME_HL:
+        case MENU_SETTINGS_THEME_LL:
         case MENU_SETTINGS_THEME_FG:
         case MENU_SETTINGS_THEME_BG:  return COLOR_COUNT;
         case MENU_CONFIRM_REBOOT:
@@ -228,6 +236,8 @@ static void drawCurrentMenu(void) {
         case MENU_SETTINGS:           drawSettingsMenu();          break;
         case MENU_SETTINGS_ABOUT:     drawAboutMenu();             break;
         case MENU_SETTINGS_THEME:     drawThemeOptionsMenu();      break;
+        case MENU_SETTINGS_THEME_HL:  drawThemeMenu("Highlight Color"); break;
+        case MENU_SETTINGS_THEME_LL:  drawThemeMenu("Lowlight Color");  break;
         case MENU_SETTINGS_THEME_FG:  drawThemeMenu("Foreground Color"); break;
         case MENU_SETTINGS_THEME_BG:  drawThemeMenu("Background Color"); break;
         case MENU_CONFIRM_REBOOT:     drawConfirmMenu("Reboot?");  break;
@@ -237,7 +247,7 @@ static void drawCurrentMenu(void) {
 
 void messageBox(const char* msg) {
     vgaPutStr(msg);
-    vgaPutStr("\n\nPress any key to return...");
+    vgaPutStrColor("\n\nPress any key to return...", LL);
     while (!keyboardHasChar()) __asm__ volatile ("hlt");
     keyboardGetChar();
 }
@@ -289,14 +299,22 @@ static void handleAboutSelect(void) {
 static void handleThemeSelect(void) {
     switch (selectIndex) {
         case 0:
-            pushMenu(MENU_SETTINGS_THEME_FG, FG);
+            pushMenu(MENU_SETTINGS_THEME_HL, HL);
             drawCurrentMenu();
             return;
         case 1:
-            pushMenu(MENU_SETTINGS_THEME_BG, BG);
+            pushMenu(MENU_SETTINGS_THEME_LL, LL);
             drawCurrentMenu();
             return;
         case 2:
+            pushMenu(MENU_SETTINGS_THEME_FG, FG);
+            drawCurrentMenu();
+            return;
+        case 3:
+            pushMenu(MENU_SETTINGS_THEME_BG, BG);
+            drawCurrentMenu();
+            return;
+        case 4:
             popMenu();
             drawCurrentMenu();
             return;
@@ -319,6 +337,22 @@ static void handleThemeFGSelect(void) {
     drawCurrentMenu();
 }
 
+static void handleThemeHLSelect(void) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
+        HL = VGA_COLOR((uint8_t)selectIndex, BG);
+    }
+    popMenu();
+    drawCurrentMenu();
+}
+
+static void handleThemeLLSelect(void) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
+        LL = VGA_COLOR((uint8_t)selectIndex, BG);
+    }
+    popMenu();
+    drawCurrentMenu();
+}
+
 static void handleThemeBGSelect(void) {
     if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
         uint8_t newBG = (uint8_t)selectIndex;
@@ -327,6 +361,8 @@ static void handleThemeBGSelect(void) {
             messageBox("Background cannot be the\nsame as foreground!");
         } else {
             BG = newBG;
+            HL = VGA_COLOR(HL & 0x0F, BG); 
+            LL = VGA_COLOR(LL & 0x0F, BG);
             updateTheme();
         }
     }
@@ -360,6 +396,8 @@ static void handleSelect(void) {
         case MENU_SETTINGS:           handleSettingsMenuSelect(); break;
         case MENU_SETTINGS_ABOUT:     handleAboutSelect();       break;
         case MENU_SETTINGS_THEME:     handleThemeSelect();       break;
+        case MENU_SETTINGS_THEME_HL:  handleThemeHLSelect();   break;
+        case MENU_SETTINGS_THEME_LL:  handleThemeLLSelect();   break;
         case MENU_SETTINGS_THEME_FG:  handleThemeFGSelect();     break;
         case MENU_SETTINGS_THEME_BG:  handleThemeBGSelect();     break;
         case MENU_CONFIRM_REBOOT:     handleConfirmReboot();     break;
@@ -372,10 +410,13 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     (void)addr;
 
     theme = VGA_COLOR(FG, BG);
+    HL = vgaEntryColor(COLOR_LIGHT_BLUE, BG);
+    LL = vgaEntryColor(COLOR_LIGHT_GREY, BG);
 
     vgaInit();
     idtInit();
     keyboardInit();
+    vgaDisableCursor();
     vgaSetColorByte(theme);
     vgaClear();
     drawMainMenu();
@@ -384,10 +425,17 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     for (;;) {
         if (keyboardHasChar()) {
-            char c = keyboardGetChar();
+            unsigned char c = keyboardGetChar();
             int size = getCurrentSize();
 
-            if (c == KEY_UP || c == 'w' || c == 'W') {
+            //vgaPutHex8(c);
+
+            if (c == KEY_ESC) {
+                if (!popMenu()) {
+                    // 已经在主菜单，不做任何事
+                }
+                drawCurrentMenu();
+            } else if (c == KEY_UP || c == 'w' || c == 'W') {
                 if (--selectedIndex < 0)
                     selectedIndex = size - 1;
                 drawCurrentMenu();

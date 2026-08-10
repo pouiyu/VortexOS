@@ -5,6 +5,8 @@
 #include <sys/cdefs.h>
 
 extern uint8_t theme;
+extern uint8_t HL;
+extern uint8_t LL;
 
 void vgaSetColorByte(uint8_t color);
 void messageBox(const char* msg);

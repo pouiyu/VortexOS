@@ -84,5 +84,7 @@ void vgaPutHex32(uint32_t value);
 void vgaPutColor(void);
 void vgaPutColorRow(uint8_t row);
 void vgaPutColorRange(uint8_t row, uint8_t startCol, uint8_t endCol);
+void vgaDisableCursor(void);
+void vgaEnableCursor(void);
 
 #endif

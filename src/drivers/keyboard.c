@@ -81,10 +81,6 @@ void keyboardIRQHandler(void) {
                 shiftPressed = true;
                 break;
             case 0xAA:
-            case 0xB6:
-                shiftPressed = false;
-                break;
-            case 0x3A:
                 capsLockOn = !capsLockOn;
                 break;
         }
@@ -126,7 +122,7 @@ char keyboardGetChar(void) {
             case 0x1C: return '\n';   // 回车
             case 0x0E: return '\b';   // 退格
             case 0x0F: return '\t';   // Tab
-            case 0x01: return 0x1B;   // Esc
+            case 0x01: return KEY_ESC;// Esc
             case 0x39: return ' ';    // 空格（表中已有但确保）
         }
 

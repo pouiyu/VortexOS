@@ -2,12 +2,15 @@
 #include "config.h"
 #include <vga.h>
 #include <keyboard.h>
+#include <kernel.h>
 
 void showSystemInfo(void) {
     vgaClear();
 
     drawTitle("System Info");
-    vgaPutStr("OS:                   " OS_NAME);
+    showSystemLogo();
+    vgaPutStr("OS:                   ");
+    vgaPutStrColor(OS_NAME, HL);
     vgaPutChar('\n');
     vgaPutStr("Version:              " OS_VERSION);
     vgaPutChar('\n');
@@ -27,4 +30,10 @@ void showDeviceInfo(void) {
     drawTitle("Device Info");
     vgaPutStr("Don't know");
     messageBox("");
+}
+
+void showSystemLogo(void) {
+    vgaClear();
+    vgaPutStrColor(OS_LOGO, COLOR_BLUE);
+    //messageBox("");
 }

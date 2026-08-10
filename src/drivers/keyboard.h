@@ -4,60 +4,53 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// ==================== 端口定义 ====================
-#define KEYBOARD_DATA_PORT 0x60
-#define KEYBOARD_STATUS_PORT 0x64
-#define KEYBOARD_COMMAND_PORT 0x64
+#define KEYBOARD_DATA_PORT      0x60
+#define KEYBOARD_STATUS_PORT    0x64
+#define KEYBOARD_COMMAND_PORT   0x64
 
-#define KEYBOARD_IRQ 1
-#define KEYBOARD_INT_VECTOR 0x21
+#define KEYBOARD_IRQ            1
+#define KEYBOARD_INT_VECTOR     0x21
 
-#define KEYBOARD_STATUS_OUTPUT_FULL 0x01
-#define KEYBOARD_STATUS_INPUT_EMPTY 0x02
+#define KEYBOARD_STATUS_OUTPUT_FULL  0x01
+#define KEYBOARD_STATUS_INPUT_EMPTY  0x02
 
-// ==================== 扫描码集 ====================
-#define SCANCODE_SET_1 1
-#define SCANCODE_SET_2 2
-#define SCANCODE_SET_3 3
+#define SCANCODE_SET_1  1
+#define SCANCODE_SET_2  2
+#define SCANCODE_SET_3  3
 
-// ==================== 扩展扫描码 ====================
-#define SCANCODE_EXTENDED 0xE0
-#define SCANCODE_RELEASE  0xF0
+#define SCANCODE_EXTENDED  0xE0
+#define SCANCODE_RELEASE   0xF0
 
-// ==================== 方向键扫描码 ====================
 #define SCANCODE_UP    0x48
 #define SCANCODE_DOWN  0x50
 #define SCANCODE_LEFT  0x4B
 #define SCANCODE_RIGHT 0x4D
 
-// ==================== 功能键扫描码 ====================
-#define SCANCODE_F1  0x3B
-#define SCANCODE_F2  0x3C
-#define SCANCODE_F3  0x3D
-#define SCANCODE_F4  0x3E
-#define SCANCODE_F5  0x3F
-#define SCANCODE_F6  0x40
-#define SCANCODE_F7  0x41
-#define SCANCODE_F8  0x42
-#define SCANCODE_F9  0x43
-#define SCANCODE_F10 0x44
-#define SCANCODE_F11 0x57
-#define SCANCODE_F12 0x58
+#define SCANCODE_F1   0x3B
+#define SCANCODE_F2   0x3C
+#define SCANCODE_F3   0x3D
+#define SCANCODE_F4   0x3E
+#define SCANCODE_F5   0x3F
+#define SCANCODE_F6   0x40
+#define SCANCODE_F7   0x41
+#define SCANCODE_F8   0x42
+#define SCANCODE_F9   0x43
+#define SCANCODE_F10  0x44
+#define SCANCODE_F11  0x57
+#define SCANCODE_F12  0x58
 
-// ==================== 修饰键扫描码 ====================
-#define SCANCODE_LSHIFT   0x2A
-#define SCANCODE_RSHIFT   0x36
-#define SCANCODE_LSHIFT_RELEASE   0xAA
-#define SCANCODE_RSHIFT_RELEASE   0xB6
-#define SCANCODE_LCTRL    0x1D
-#define SCANCODE_RCTRL    0x9D
-#define SCANCODE_LALT     0x38
-#define SCANCODE_RALT     0xB8
-#define SCANCODE_CAPSLOCK 0x3A
-#define SCANCODE_NUMLOCK  0x45
-#define SCANCODE_SCROLLLOCK 0x46
+#define SCANCODE_LSHIFT         0x2A
+#define SCANCODE_RSHIFT         0x36
+#define SCANCODE_LSHIFT_RELEASE 0xAA
+#define SCANCODE_RSHIFT_RELEASE 0xB6
+#define SCANCODE_LCTRL          0x1D
+#define SCANCODE_RCTRL          0x9D
+#define SCANCODE_LALT           0x38
+#define SCANCODE_RALT           0xB8
+#define SCANCODE_CAPSLOCK       0x3A
+#define SCANCODE_NUMLOCK        0x45
+#define SCANCODE_SCROLLLOCK     0x46
 
-// ==================== 键码枚举 ====================
 typedef enum {
     KEY_NONE = 0,
     KEY_ESC = 1,
@@ -84,60 +77,67 @@ typedef enum {
     KEY_F5 = 63, KEY_F6 = 64, KEY_F7 = 65, KEY_F8 = 66,
     KEY_F9 = 67, KEY_F10 = 68,
     KEY_NUMLOCK = 69, KEY_SCROLLLOCK = 70,
-    KEY_HOME = 71, KEY_UP = 72, KEY_PAGEUP = 73,
-    KEY_MINUS_KEYPAD = 74,
-    KEY_LEFT = 75, KEY_CENTER = 76, KEY_RIGHT = 77,
-    KEY_PLUS_KEYPAD = 78,
-    KEY_END = 79, KEY_DOWN = 80, KEY_PAGEDOWN = 81,
-    KEY_INSERT = 82, KEY_DELETE = 83,
-    KEY_F11 = 87, KEY_F12 = 88,
-    KEY_RIGHTALT = 100,
-    KEY_RIGHTCTRL = 101,
-    KEY_LEFTGUI = 102,
-    KEY_RIGHTGUI = 103,
-    KEY_APPS = 104,
-    KEY_PRINTSCREEN = 105,
-    KEY_PAUSE = 106,
-    KEY_SLEEP = 107,
-    KEY_POWER = 108,
-    KEY_WAKE = 109,
-    KEY_PREVTRACK = 110,
-    KEY_NEXTTRACK = 111,
-    KEY_MUTE = 112,
-    KEY_CALCULATOR = 113,
-    KEY_PLAY = 114,
-    KEY_STOP = 115,
-    KEY_VOLUMEDOWN = 116,
-    KEY_VOLUMEUP = 117,
-    KEY_WWW_HOME = 118,
-    KEY_WWW_SEARCH = 119,
-    KEY_WWW_FAV = 120,
-    KEY_WWW_REFRESH = 121,
-    KEY_WWW_STOP = 122,
-    KEY_WWW_FORWARD = 123,
-    KEY_WWW_BACK = 124,
-    KEY_MYCOMPUTER = 125,
-    KEY_EMAIL = 126,
-    KEY_MEDIASELECT = 127,
-    KEY_KEYPAD_ENTER = 128,
-    KEY_KEYPAD_SLASH = 129,
-    KEY_KEYPAD_STAR = 130,
-    KEY_KEYPAD_MINUS = 131,
-    KEY_KEYPAD_PLUS = 132,
-    KEY_KEYPAD_DOT = 133,
-    KEY_KEYPAD_0 = 134,
-    KEY_KEYPAD_1 = 135,
-    KEY_KEYPAD_2 = 136,
-    KEY_KEYPAD_3 = 137,
-    KEY_KEYPAD_4 = 138,
-    KEY_KEYPAD_5 = 139,
-    KEY_KEYPAD_6 = 140,
-    KEY_KEYPAD_7 = 141,
-    KEY_KEYPAD_8 = 142,
-    KEY_KEYPAD_9 = 143
+
+    // 扩展键（>= 128，避免与普通键冲突）
+    KEY_UP    = 128,
+    KEY_DOWN  = 129,
+    KEY_LEFT  = 130,
+    KEY_RIGHT = 131,
+    KEY_HOME  = 132,
+    KEY_END   = 133,
+    KEY_PAGEUP   = 134,
+    KEY_PAGEDOWN = 135,
+    KEY_INSERT   = 136,
+    KEY_DELETE   = 137,
+
+    KEY_KP_ENTER  = 138,
+    KEY_KP_SLASH  = 139,
+    KEY_KP_STAR   = 140,
+    KEY_KP_MINUS  = 141,
+    KEY_KP_PLUS   = 142,
+    KEY_KP_DOT    = 143,
+    KEY_KP_0 = 144, KEY_KP_1 = 145, KEY_KP_2 = 146,
+    KEY_KP_3 = 147, KEY_KP_4 = 148, KEY_KP_5 = 149,
+    KEY_KP_6 = 150, KEY_KP_7 = 151, KEY_KP_8 = 152,
+    KEY_KP_9 = 153,
+
+    KEY_RIGHTALT = 154,
+    KEY_RIGHTCTRL = 155,
+
+    KEY_F11 = 156, KEY_F12 = 157,
+
+    KEY_PRINTSCREEN = 158,
+    KEY_PAUSE       = 159,
+
+    KEY_LEFTGUI  = 160,
+    KEY_RIGHTGUI = 161,
+    KEY_APPS     = 162,
+
+    KEY_SLEEP = 163,
+    KEY_POWER = 164,
+    KEY_WAKE  = 165,
+
+    KEY_PREVTRACK  = 166,
+    KEY_NEXTTRACK  = 167,
+    KEY_MUTE       = 168,
+    KEY_CALCULATOR = 169,
+    KEY_PLAY       = 170,
+    KEY_STOP       = 171,
+    KEY_VOLUMEDOWN = 172,
+    KEY_VOLUMEUP   = 173,
+
+    KEY_WWW_HOME     = 174,
+    KEY_WWW_SEARCH   = 175,
+    KEY_WWW_FAV      = 176,
+    KEY_WWW_REFRESH  = 177,
+    KEY_WWW_STOP     = 178,
+    KEY_WWW_FORWARD  = 179,
+    KEY_WWW_BACK     = 180,
+    KEY_MYCOMPUTER   = 181,
+    KEY_EMAIL        = 182,
+    KEY_MEDIASELECT  = 183
 } KeyCode;
 
-// ==================== 键盘事件 ====================
 typedef struct {
     KeyCode key;
     char ascii;
@@ -148,7 +148,6 @@ typedef struct {
     bool capsLock;
 } KeyEvent;
 
-// ==================== 函数声明 ====================
 void keyboardInit(void);
 char keyboardGetChar(void);
 bool keyboardHasChar(void);

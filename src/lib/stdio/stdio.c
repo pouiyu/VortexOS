@@ -35,6 +35,16 @@ void vgaGetCursorPos(uint8_t* row, uint8_t* col) {
     if (col) *col = cursorCol;
 }
 
+void vgaDisableCursor(void) {
+    outb(0x3D4, 0x0A);  // 光标起始寄存器
+    outb(0x3D5, 0x20);  // 设置第5位为1禁用光标
+}
+
+void vgaEnableCursor(void) {
+    outb(0x3D4, 0x0A);
+    outb(0x3D5, 0x0E);  // 恢复默认值
+}
+
 void vgaPutColor(void) {
     size_t index = cursorRow * VGA_WIDTH + cursorCol;
     uint16_t entry = videoMemory[index];
