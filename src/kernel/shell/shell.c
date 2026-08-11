@@ -69,6 +69,8 @@ static int shellExecute(const char* cmd) {
 
 void runShell(void) {
     vgaClear();
+    vgaEnableCursor();
+    vgaSetCursorStyle(14,15);
     vgaPutStrColor(OS_NAME " Shell\n", HL);
     vgaPutStrColor("Type \"help\" for commands, \"exit\" to return.\n\n", LL);
 

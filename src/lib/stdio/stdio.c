@@ -35,14 +35,24 @@ void vgaGetCursorPos(uint8_t* row, uint8_t* col) {
     if (col) *col = cursorCol;
 }
 
+void vgaSetCursorStyle(uint8_t start, uint8_t end) {
+    outb(VGA_CTRL_REG, VGA_CURSOR_START);
+    outb(VGA_DATA_REG, (inb(VGA_DATA_REG) & 0xC0) | (start & 0x1F));
+    outb(VGA_CTRL_REG, VGA_CURSOR_END);
+    outb(VGA_DATA_REG, (inb(VGA_DATA_REG) & 0xE0) | (end & 0x1F));
+}
+
 void vgaDisableCursor(void) {
-    outb(0x3D4, 0x0A);  // 光标起始寄存器
-    outb(0x3D5, 0x20);  // 设置第5位为1禁用光标
+    outb(VGA_CTRL_REG, VGA_CURSOR_START);
+    outb(VGA_DATA_REG, 0x20);
 }
 
 void vgaEnableCursor(void) {
-    outb(0x3D4, 0x0A);
-    outb(0x3D5, 0x0E);  // 恢复默认值
+    outb(VGA_CTRL_REG, VGA_CURSOR_START);
+    uint8_t start = inb(VGA_DATA_REG) & 0x1F;
+    outb(VGA_CTRL_REG, VGA_CURSOR_END);
+    uint8_t end = inb(VGA_DATA_REG) & 0x1F;
+    vgaSetCursorStyle(start, end);
 }
 
 void vgaPutColor(void) {

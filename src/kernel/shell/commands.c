@@ -75,5 +75,6 @@ static int cmdEcho(int argc, char** argv) {
 static int cmdExit(int argc, char** argv) {
     (void)argc;
     (void)argv;
+    vgaDisableCursor();
     return 1;
 }

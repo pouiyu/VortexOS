@@ -428,7 +428,7 @@ void kernel_main(unsigned int magic, unsigned int addr) {
             unsigned char c = keyboardGetChar();
             int size = getCurrentSize();
 
-            //vgaPutHex8(c);
+            // vgaPutHex8(c);
 
             if (c == KEY_ESC) {
                 if (!popMenu()) {

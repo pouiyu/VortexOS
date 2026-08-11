@@ -14,6 +14,8 @@
 #define VGA_DATA_REG 0x3D5
 #define VGA_CURSOR_HI 0x0E
 #define VGA_CURSOR_LO 0x0F
+#define VGA_CURSOR_START 0x0A
+#define VGA_CURSOR_END   0x0B
 
 enum VgaColor {
     COLOR_BLACK = 0,
@@ -35,42 +37,40 @@ enum VgaColor {
     COLOR_WHITE = 15
 };
 
-// 颜色组合函数
 static inline uint8_t vgaEntryColor(uint8_t fg, uint8_t bg) {
     return fg | bg << 4;
 }
 
-// 字符+颜色组合函数
 static inline uint16_t vgaEntry(char c, uint8_t color) {
     return (uint16_t)c | (uint16_t)color << 8;
 }
 
-// 颜色反色函数
 static inline uint8_t vgaInvertColor(uint8_t color) {
     uint8_t fg = color & 0x0F;
     uint8_t bg = (color >> 4) & 0x0F;
     return vgaEntryColor(bg, fg);
 }
 
-// 获取前景色
 static inline uint8_t vgaGetFg(uint8_t color) {
     return color & 0x0F;
 }
 
-// 获取背景色
 static inline uint8_t vgaGetBg(uint8_t color) {
     return (color >> 4) & 0x0F;
 }
 
+#define VGA_COLOR(fg, bg) ((fg) | ((bg) << 4))
+
 uint8_t vgaGetCursorRow(void);
 uint8_t vgaGetCursorCol(void);
-
-#define VGA_COLOR(fg, bg) ((fg) | ((bg) << 4))
 
 void vgaInit(void);
 void vgaClear(void);
 void vgaSetCursorPos(uint8_t row, uint8_t col);
 void vgaGetCursorPos(uint8_t* row, uint8_t* col);
+void vgaSetCursorStyle(uint8_t start, uint8_t end);
+void vgaEnableCursor(void);
+void vgaDisableCursor(void);
 void vgaPutChar(char c);
 void vgaPutCharColor(char c, uint8_t color);
 void vgaPutStr(const char* str);
@@ -84,7 +84,5 @@ void vgaPutHex32(uint32_t value);
 void vgaPutColor(void);
 void vgaPutColorRow(uint8_t row);
 void vgaPutColorRange(uint8_t row, uint8_t startCol, uint8_t endCol);
-void vgaDisableCursor(void);
-void vgaEnableCursor(void);
 
 #endif
