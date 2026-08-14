@@ -47,6 +47,5 @@ void idtInit(void) {
     
     outb(0x21, 0xFD);
     outb(0xA1, 0xFF);
-    
-    vgaPutStrColor("[OK] IDT initialized\n", COLOR_LIGHT_GREEN);
+
 }

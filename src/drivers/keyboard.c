@@ -104,7 +104,7 @@ void keyboardInit(void) {
     capsLockOn = false;
     extendedCode = false;
     releaseCode = false;
-    vgaPutStr("[KEYBOARD] Initialized\n");
+
 }
 
 char keyboardGetChar(void) {

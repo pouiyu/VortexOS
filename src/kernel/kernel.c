@@ -8,13 +8,16 @@
 #include <sysinfo/config.h>
 #include <shell/shell.h>
 #include <shell/commands.h>
+#include <fs/fat32.h>
 #include "device.h"
 
 uint8_t FG = COLOR_WHITE;
 uint8_t BG = COLOR_BLACK;
-uint8_t HL = NULL;
-uint8_t LL = NULL;
+uint8_t HL ;
+uint8_t LL ;
 uint8_t theme;
+
+static fat32Volume fsVolume;
 
 #define MENU_STACK_SIZE 16
 
@@ -413,9 +416,19 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     HL = vgaEntryColor(COLOR_LIGHT_BLUE, BG);
     LL = vgaEntryColor(COLOR_LIGHT_GREY, BG);
 
+    
     vgaInit();
+    vgaPutStr("[VGA] Initialized\n");
     idtInit();
+    vgaPutStr("[IDT] Initialized\n");
     keyboardInit();
+    vgaPutStr("[KEYBOARD] Initialized\n");
+    if (fat32Init(&fsVolume)) {
+        vgaPutStr("[FAT32] Initialized\n");
+    } else {
+        vgaPutStr("[FAT32] Init failed\n");
+    }
+    //__asm__ volatile ("hlt");
     vgaDisableCursor();
     vgaSetColorByte(theme);
     vgaClear();

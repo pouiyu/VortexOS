@@ -30,7 +30,7 @@ ISO_TARGET = vortexos.iso
 
 # QEMU参数
 QEMU = qemu-system-x86_64
-QEMU_FLAGS = -cdrom $(ISO_TARGET) -m 256M -cpu qemu64 -smp 1 -vga std -no-reboot
+QEMU_FLAGS = -cdrom $(ISO_TARGET) -hda disk.img -m 256M -boot d -cpu qemu64 -smp 1 -vga std -no-reboot
 QEMU_DEBUG = -s -S -d int -D qemu.log
 QEMU_KVM = -enable-kvm -cpu host
 
