@@ -17,7 +17,7 @@ uint8_t HL ;
 uint8_t LL ;
 uint8_t theme;
 
-static fat32Volume fsVolume;
+fat32Volume fsVolume;
 
 #define MENU_STACK_SIZE 16
 
@@ -421,6 +421,7 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     vgaPutStr("[VGA] Initialized\n");
     idtInit();
     vgaPutStr("[IDT] Initialized\n");
+    vgaPutStr("[EXCEPTIONS] Initialized\n");
     keyboardInit();
     vgaPutStr("[KEYBOARD] Initialized\n");
     if (fat32Init(&fsVolume)) {

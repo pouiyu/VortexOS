@@ -18,16 +18,24 @@ static uint32_t readFatEntry(fat32Volume* vol, uint32_t cluster) {
 }
 
 bool fat32Init(fat32Volume* vol) {
-    ataReadSector(0, sectorBuf);  // MBR
+    ataReadSector(0, sectorBuf);
 
-    // 读第一个分区
-    uint32_t partitionStart = *(uint32_t*)(sectorBuf + 0x1BE + 8);
+    // 检查 MBR 签名（0x55AA）
+    uint32_t partitionStart = 0;
+    if (sectorBuf[510] == 0x55 && sectorBuf[511] == 0xAA) {
+        // 有 MBR，读第一个分区起始块
+        partitionStart = *(uint32_t*)(sectorBuf + 0x1BE + 8);
+    } else {
+        // 无分区表，FAT32 从块 0 开始
+        partitionStart = 0;
+    }
     vol->partitionOffset = partitionStart;
 
     ataReadSector(partitionStart, sectorBuf);
     fat32BootSector* boot = (fat32BootSector*)sectorBuf;
 
     if (boot->bytesPerSector != 512 || boot->sectorsPerCluster == 0) {
+        vol->valid = false;
         return false;
     }
 
@@ -37,8 +45,8 @@ bool fat32Init(fat32Volume* vol) {
     vol->rootCluster = boot->rootCluster;
     vol->reservedSectorCount = boot->reservedSectorCount;
     vol->numFats = boot->numFats;
-    vol->dataStartSector = partitionStart + 
-        boot->reservedSectorCount + 
+    vol->dataStartSector = partitionStart +
+        boot->reservedSectorCount +
         boot->numFats * boot->sectorsPerFat;
     vol->rootDirStartSector = clusterToSector(vol, vol->rootCluster);
     vol->valid = true;
@@ -59,9 +67,9 @@ bool fat32ListDir(fat32Volume* vol, const char* path, char* buf, int bufSize) {
             fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
             for (int i = 0; i < 16; i++) {
                 fat32DirEntry* e = &entries[i];
-                if (e->name[0] == 0x00) return true;  // 目录结束
-                if (e->name[0] == 0xE5) continue;     // 已删除
-                if (e->attributes == 0x0F) continue;  // 长文件名
+                if (e->name[0] == 0x00) return true;
+                if (e->name[0] == 0xE5) continue;
+                if (e->attributes == 0x0F) continue;
 
                 char name[13];
                 int n = 0;
@@ -74,7 +82,13 @@ bool fat32ListDir(fat32Volume* vol, const char* path, char* buf, int bufSize) {
                 }
                 name[n] = '\0';
 
-                if (offset + n + 2 < bufSize) {
+                // 目录标记 <D>，文件标记 <F>
+                const char* tag = (e->attributes & FAT32_ATTR_DIRECTORY) ? "<D> " : "<F> ";
+                int tagLen = 4;
+
+                if (offset + tagLen + n + 2 < bufSize) {
+                    for (int j = 0; j < tagLen; j++)
+                        buf[offset++] = tag[j];
                     for (int j = 0; j < n; j++)
                         buf[offset++] = name[j];
                     buf[offset++] = '\n';

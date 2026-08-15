@@ -64,20 +64,22 @@ typedef struct {
 } __attribute__((packed)) fat32DirEntry;
 
 typedef struct {
-    bool valid;
-    uint16_t bytesPerSector;
-    uint8_t  sectorsPerCluster;
-    uint32_t sectorsPerFat;
-    uint32_t rootCluster;
-    uint32_t dataStartSector;
-    uint32_t rootDirStartSector;
-    uint32_t partitionOffset;
-    uint16_t reservedSectorCount;  
-    uint8_t  numFats;             
+    bool valid;                  // FAT32 是否初始化成功
+    uint16_t bytesPerSector;     // 每扇区字节数（通常 512）
+    uint8_t  sectorsPerCluster;  // 每簇扇区数（如 8）
+    uint32_t sectorsPerFat;      // FAT 表占用扇区数
+    uint32_t rootCluster;        // 根目录起始簇号（通常 2）
+    uint32_t dataStartSector;    // 数据区起始扇区
+    uint32_t rootDirStartSector; // 根目录起始扇区
+    uint32_t partitionOffset;    // 分区在磁盘上的起始扇区
+    uint16_t reservedSectorCount;// 保留扇区数
+    uint8_t  numFats;            // FAT 表份数（通常 2）
 } fat32Volume;
 
 bool fat32Init(fat32Volume* vol);
 bool fat32OpenFile(fat32Volume* vol, const char* path, void** data, uint32_t* size);
 bool fat32ListDir(fat32Volume* vol, const char* path, char* buf, int bufSize);
+
+extern fat32Volume fsVolume;
 
 #endif
