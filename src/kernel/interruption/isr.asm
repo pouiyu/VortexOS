@@ -35,7 +35,7 @@ extern exc28
 extern exc29
 extern exc30
 extern exc31
-extern irq1_handler
+extern keyboardIRQHandler
 
 %macro ISR_NOERR 1
 global isr%1
@@ -118,3 +118,20 @@ ISR_NOERR 28
 ISR_NOERR 29
 ISR_ERR   30
 ISR_NOERR 31
+
+; 键盘中断处理入口
+global irq1_handler
+
+irq1_handler:
+    pusha
+    call keyboardIRQHandler
+    popa
+    iret
+
+; 加载 IDT
+global idtLoad
+
+idtLoad:
+    mov eax, [esp + 4]
+    lidt [eax]
+    ret
