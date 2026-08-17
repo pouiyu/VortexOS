@@ -435,6 +435,10 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     vgaClear();
     drawMainMenu();
 
+    // int a = 1;
+    // int b = 0;
+    // int c = a / b;
+
     __asm__ volatile ("sti");
 
     for (;;) {

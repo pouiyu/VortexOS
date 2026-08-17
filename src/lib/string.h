@@ -39,6 +39,8 @@ void* memset(void* s, int c, size_t n);
 void* memchr(const void* s, int c, size_t n);
 int memcmp(const void* s1, const void* s2, size_t n);
 
+int strcasecmp(const char* s1, const char* s2);
+
 __END_DECLS
 
 #endif

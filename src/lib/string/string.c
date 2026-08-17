@@ -263,3 +263,16 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     }
     return 0;
 }
+
+int strcasecmp(const char* s1, const char* s2) {
+    while (*s1 && *s2) {
+        char c1 = *s1;
+        char c2 = *s2;
+        if (c1 >= 'a' && c1 <= 'z') c1 -= 32;
+        if (c2 >= 'a' && c2 <= 'z') c2 -= 32;
+        if (c1 != c2) return (unsigned char)c1 - (unsigned char)c2;
+        s1++;
+        s2++;
+    }
+    return (unsigned char)*s1 - (unsigned char)*s2;
+}

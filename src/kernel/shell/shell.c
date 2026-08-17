@@ -5,34 +5,56 @@
 #include <keyboard.h>
 #include <string.h>
 #include <kernel.h>
+#include <fs/fat32.h>
 
 #define MAX_INPUT 256
 
 static char inputBuf[MAX_INPUT];
 static int  inputLen = 0;
 static int  cursorPos = 0;
+static char currentDir[PATH_MAX] = "/";
 
 static const char* prompt = OS_NAME "> ";
 static int promptLen = 0;  // 提示符长度，init 时计算
 
+static int shellRow = 0;  // 提示符所在行
+
+const char* shellGetCwd(void) {
+    return currentDir;
+}
+
+void shellSetCwd(const char* path) {
+    if (path[0] == '\0') {
+        strcpy(currentDir, "/");
+    } else {
+        strcpy(currentDir, path);
+    }
+}
+
 static void shellRedrawLine(void) {
-    uint8_t row, col;
-    vgaGetCursorPos(&row, &col);
+    vgaSetCursorPos(shellRow, promptLen);
 
-    // 回到行首（提示符末尾）
-    vgaSetCursorPos(row, promptLen);
-
-    // 清空本行剩余
-    for (int i = promptLen; i < VGA_WIDTH; i++)
+    for (int i = promptLen; i < VGA_WIDTH - 1; i++)  // 减 1
         vgaPutChar(' ');
 
-    // 重新输出输入内容
-    vgaSetCursorPos(row, promptLen);
+    vgaSetCursorPos(shellRow, promptLen);
     for (int i = 0; i < inputLen; i++)
         vgaPutChar(inputBuf[i]);
 
-    // 光标移到正确位置
-    vgaSetCursorPos(row, promptLen + cursorPos);
+    vgaSetCursorPos(shellRow, promptLen + cursorPos);
+}
+
+static int getPromptLen(void) {
+    return strlen(OS_NAME) + 1 + strlen(currentDir) + 2;  // "vortex:" + cwd + "> "
+}
+
+static void putPrompt(void) {
+    vgaPutStrColor(OS_NAME, HL);
+    vgaPutStrColor(":", HL);
+    vgaPutStrColor(shellGetCwd(), HL);
+    vgaPutStrColor("> ", HL);
+    
+    promptLen = getPromptLen();
 }
 
 static int shellExecute(const char* cmd) {
@@ -71,18 +93,24 @@ void runShell(void) {
     vgaClear();
     vgaEnableCursor();
     vgaSetCursorStyle(14,15);
-    vgaPutStrColor(OS_NAME " Shell\n", HL);
+    putPrompt();
     vgaPutStrColor("Type \"help\" for commands, \"exit\" to return.\n\n", LL);
 
-    promptLen = strlen(prompt);
+    uint8_t initRow, initCol;
+    vgaGetCursorPos(&initRow, &initCol);
+    shellRow = initRow;
+
     inputLen = 0;
     cursorPos = 0;
     inputBuf[0] = '\0';
-    vgaPutStrColor(prompt, HL);
+
+    // shellExecute("cat folder2/file6file6file6file6.txt");
+
+    putPrompt();
 
     for (;;) {
         if (keyboardHasChar()) {
-            char c = keyboardGetChar();
+            unsigned char c = keyboardGetChar();
 
             if (c == '\r' || c == '\n') {
                 vgaPutChar('\n');
@@ -91,10 +119,19 @@ void runShell(void) {
                 if (shellExecute(inputBuf) == 1)
                     return;
 
+                // 命令执行完，计算提示符所在行
+                uint8_t row, col;
+                vgaGetCursorPos(&row, &col);
+                if (col != 0) {
+                    vgaPutChar('\n');
+                    row++;
+                }
+                shellRow = row;
+
                 inputLen = 0;
                 cursorPos = 0;
                 inputBuf[0] = '\0';
-                vgaPutStrColor(prompt, HL);
+                putPrompt();
             } else if (c == '\b') {
                 if (cursorPos > 0 && inputLen > 0) {
                     // 把光标后面的内容往前移

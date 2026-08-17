@@ -16,6 +16,9 @@
 #define FAT32_ATTR_DIRECTORY  0x10
 #define FAT32_ATTR_ARCHIVE    0x20
 
+#define NAME_MAX  255
+#define PATH_MAX  512
+
 typedef struct {
     uint8_t  jmpBoot[3];
     uint8_t  oemName[8];
@@ -76,9 +79,24 @@ typedef struct {
     uint8_t  numFats;            // FAT 表份数（通常 2）
 } fat32Volume;
 
+typedef struct {
+    uint8_t  order;        // 序列号，0x40 表示最后一段
+    uint16_t name1[5];     // 5 个 UTF-16 字符
+    uint8_t  attr;         // 0x0F
+    uint8_t  type;         // 0
+    uint8_t  checksum;     // 短文件名校验
+    uint16_t name2[6];     // 6 个 UTF-16 字符
+    uint16_t firstCluster; // 0
+    uint16_t name3[2];     // 2 个 UTF-16 字符
+} __attribute__((packed)) fat32LfnEntry;
+
 bool fat32Init(fat32Volume* vol);
 bool fat32OpenFile(fat32Volume* vol, const char* path, void** data, uint32_t* size);
 bool fat32ListDir(fat32Volume* vol, const char* path, char* buf, int bufSize);
+bool fat32PathToCluster(fat32Volume* vol, const char* path, uint32_t* outCluster);
+bool fat32FindDirEntry(fat32Volume* vol, uint32_t dirCluster, const char* name, fat32DirEntry* result);
+uint32_t clusterToSector(fat32Volume* vol, uint32_t cluster);
+uint32_t readFatEntry(fat32Volume* vol, uint32_t cluster);
 
 extern fat32Volume fsVolume;
 

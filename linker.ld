@@ -23,6 +23,7 @@ SECTIONS
     .rodata ALIGN(4K) :
     {
         *(.rodata)
+        *(.rodata.*)
     }
 
     /* 初始化数据段 */

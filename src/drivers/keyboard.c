@@ -46,22 +46,22 @@ static char handleExtendedScancode(unsigned char scancode) {
 
 void keyboardIRQHandler(void) {
     unsigned char scancode = inb(0x60);
-    
-    // 处理扩展码前缀 E0
+
+    // 扩展码前缀
     if (scancode == 0xE0) {
         extendedCode = true;
         outb(0x20, 0x20);
         return;
     }
-    
-    // 处理释放码前缀 F0
+
+    // 释放码前缀
     if (scancode == 0xF0) {
         releaseCode = true;
         outb(0x20, 0x20);
         return;
     }
-    
-    // 如果是扩展码（方向键等）
+
+    // 扩展键
     if (extendedCode) {
         if (!releaseCode) {
             keyboardScancode = handleExtendedScancode(scancode);
@@ -71,30 +71,24 @@ void keyboardIRQHandler(void) {
         outb(0x20, 0x20);
         return;
     }
-    
+
     // 普通扫描码
     if (scancode < 0x80) {
+        // 按下
+        if (scancode == 0x2A || scancode == 0x36) {
+            shiftPressed = true;
+        } else if (scancode == 0x3A) {
+            capsLockOn = !capsLockOn;   // Caps Lock 按下时切换
+        }
         keyboardScancode = scancode;
-        switch (scancode) {
-            case 0x2A:
-            case 0x36:
-                shiftPressed = true;
-                break;
-            case 0xAA:
-                capsLockOn = !capsLockOn;
-                break;
-        }
     } else {
-        // 释放码
-        keyboardScancode = 0;
-        switch (scancode - 0x80) {
-            case 0x2A:
-            case 0x36:
-                shiftPressed = false;
-                break;
+        // 释放
+        if (scancode == 0xAA || scancode == 0xB6) {
+            shiftPressed = false;
         }
+        keyboardScancode = 0;
     }
-    
+
     outb(0x20, 0x20);
 }
 
