@@ -98,6 +98,8 @@ bool fat32CreateEntry(fat32Volume* vol, const char* path, bool isDirectory);
 bool fat32WriteFile(fat32Volume* vol, const char* path, const char* content, bool append);
 bool fat32CopyFile(fat32Volume* vol, const char* srcPath, const char* dstPath);
 bool fat32FindDirEntry(fat32Volume* vol, uint32_t dirCluster, const char* name, fat32DirEntry* result);
+bool fat32Remove(fat32Volume* vol, const char* path);
+bool fat32Rename(fat32Volume* vol, const char* oldPath, const char* newName);
 uint32_t clusterToSector(fat32Volume* vol, uint32_t cluster);
 uint32_t readFatEntry(fat32Volume* vol, uint32_t cluster);
 

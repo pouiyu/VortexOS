@@ -93,7 +93,7 @@ void runShell(void) {
     vgaClear();
     vgaEnableCursor();
     vgaSetCursorStyle(14,15);
-    putPrompt();
+    vgaPutStrColor(" "OS_NAME"OS\n", HL);
     vgaPutStrColor("Type \"help\" for commands, \"exit\" to return.\n\n", LL);
 
     uint8_t initRow, initCol;

@@ -1,6 +1,7 @@
 #include "commands.h"
 #include <sysinfo/config.h>
 #include <sysinfo/sysinfo.h>
+#include <stdlib.h>
 #include "device.h"
 #include <vga.h>
 #include <string.h>
@@ -18,6 +19,8 @@ static int cmdPwd(int argc, char** argv);
 static int cmdMk(int argc, char** argv);
 static int cmdWr(int argc, char** argv);
 static int cmdCp(int argc, char** argv);
+static int cmdRm(int argc, char** argv);
+static int cmdRen(int argc, char** argv);
 static int cmdReboot(int argc, char** argv);
 static int cmdShutdown(int argc, char** argv);
 static int cmdEcho(int argc, char** argv);
@@ -31,9 +34,11 @@ static const shellCommand commandList[] = {
     {"cat",      "Output the contents of a file",  cmdCat},
     {"cd", "Change current directory", cmdCd},
     {"pwd", "Print current directory", cmdPwd},
-    {"mk", "Create file or directory (-f to create directory)", cmdMk},
+    {"mk", "Create file or directory (-d to create directory)", cmdMk},
     {"wr", "Write to file (-a to append)", cmdWr},
     {"cp", "Copy file", cmdCp},
+    {"rm",  "Remove file or directory", cmdRm},
+    {"ren", "Rename file or directory", cmdRen},
     {"reboot",   "Reboot the system",              cmdReboot},
     {"shutdown", "Shutdown the system",            cmdShutdown},
     {"echo",     "Print a line of text",           cmdEcho},
@@ -75,38 +80,45 @@ static int cmdInfo(int argc, char** argv) {
 }
 
 static int cmdLs(int argc, char** argv) {
-    char buf[2048];
-
     if (!fsVolume.valid) {
         vgaPutStr("FAT32 not initialized\n");
         return 0;
     }
 
-    const char* path = shellGetCwd();
+    // 动态分配
+    char* buf = malloc(PATH_MAX * 4);
+    if (!buf) {
+        vgaPutStr("Out of memory\n");
+        return 0;
+    }
+
+    char fullPath[PATH_MAX];
     if (argc > 1) {
         if (argv[1][0] == '/') {
-            path = argv[1];
+            strcpy(fullPath, argv[1]);
         } else {
-            // 相对路径拼接
-            static char fullPath[PATH_MAX];
             const char* cwd = shellGetCwd();
             if (strcmp(cwd, "/") == 0) {
                 strcpy(fullPath, "/");
+                strcat(fullPath, argv[1]);
             } else {
                 strcpy(fullPath, cwd);
                 strcat(fullPath, "/");
+                strcat(fullPath, argv[1]);
             }
-            strcat(fullPath, argv[1]);
-            path = fullPath;
         }
+    } else {
+        strcpy(fullPath, shellGetCwd());
     }
 
-    if (!fat32ListDir(&fsVolume, path, buf, sizeof(buf))) {
+    if (!fat32ListDir(&fsVolume, fullPath, buf, PATH_MAX * 4)) {
         vgaPutStr("Failed to list directory\n");
+        free(buf);
         return 0;
     }
 
     vgaPutStr(buf);
+    free(buf);
     return 0;
 }
 
@@ -136,22 +148,27 @@ static int cmdCat(int argc, char** argv) {
         return 0;
     }
 
-    char buf[512];
+    char* buf = malloc(512);
+    if (!buf) {
+        vgaPutStr("Out of memory\n");
+        fsClose(&file);
+        return 0;
+    }
+
     int n;
-    while ((n = fsRead(&file, buf, sizeof(buf))) > 0) {
+    while ((n = fsRead(&file, buf, 512)) > 0) {
         for (int i = 0; i < n; i++) {
             vgaPutChar(buf[i]);
         }
     }
 
+    free(buf);
     fsClose(&file);
 
-    // 只有当光标不在行首时才补换行
     uint8_t row, col;
     vgaGetCursorPos(&row, &col);
-    if (col != 0) {
-        vgaPutChar('\n');
-    }
+    if (col != 0) vgaPutChar('\n');
+
     return 0;
 }
 
@@ -363,6 +380,64 @@ static int cmdCp(int argc, char** argv) {
         vgaPutStr("Copy failed\n");
     }
 
+    return 0;
+}
+
+static int cmdRm(int argc, char** argv) {
+    if (argc < 2) {
+        vgaPutStr("Usage: rm <file or directory>\n");
+        return 0;
+    }
+
+    char fullPath[PATH_MAX];
+    const char* cwd = shellGetCwd();
+    if (argv[1][0] == '/') {
+        strcpy(fullPath, argv[1]);
+    } else {
+        if (strcmp(cwd, "/") == 0) {
+            strcpy(fullPath, "/");
+            strcat(fullPath, argv[1]);
+        } else {
+            strcpy(fullPath, cwd);
+            strcat(fullPath, "/");
+            strcat(fullPath, argv[1]);
+        }
+    }
+
+    if (fat32Remove(&fsVolume, fullPath)) {
+        vgaPutStr("Removed\n");
+    } else {
+        vgaPutStr("Remove failed\n");
+    }
+    return 0;
+}
+
+static int cmdRen(int argc, char** argv) {
+    if (argc < 3) {
+        vgaPutStr("Usage: ren <old> <new>\n");
+        return 0;
+    }
+
+    char fullPath[PATH_MAX];
+    const char* cwd = shellGetCwd();
+    if (argv[1][0] == '/') {
+        strcpy(fullPath, argv[1]);
+    } else {
+        if (strcmp(cwd, "/") == 0) {
+            strcpy(fullPath, "/");
+            strcat(fullPath, argv[1]);
+        } else {
+            strcpy(fullPath, cwd);
+            strcat(fullPath, "/");
+            strcat(fullPath, argv[1]);
+        }
+    }
+
+    if (fat32Rename(&fsVolume, fullPath, argv[2])) {
+        vgaPutStr("Renamed\n");
+    } else {
+        vgaPutStr("Rename failed\n");
+    }
     return 0;
 }
 

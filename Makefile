@@ -2,6 +2,7 @@
 CC = gcc
 CFLAGS = -m32 -Wall -Wextra -std=c99 -ffreestanding \
          -nostdlib -nostartfiles -nodefaultlibs \
+         -nostdinc \
          -I src/lib \
          -I src/include \
          -I src/drivers \

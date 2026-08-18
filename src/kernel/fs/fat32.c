@@ -469,6 +469,176 @@ static void fat32FreeClusterChain(fat32Volume* vol, uint32_t cluster) {
     }
 }
 
+// 递归删除目录内容
+static bool fat32RemoveRecursive(fat32Volume* vol, uint32_t cluster, bool isDirectory) {
+    if (isDirectory) {
+        // 遍历目录内容
+        uint32_t currentCluster = cluster;
+        while (currentCluster < FAT32_CLUSTER_END) {
+            uint32_t sector = clusterToSector(vol, currentCluster);
+            for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
+                ataReadSector(sector + s, sectorBuf);
+                fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
+                for (int i = 0; i < 16; i++) {
+                    fat32DirEntry* e = &entries[i];
+                    if (e->name[0] == 0x00) break;
+                    if (e->name[0] == 0xE5) continue;
+                    if (e->name[0] == '.') continue;  // 跳过 . 和 ..
+                    if (e->attributes == 0x0F) continue;
+
+                    uint32_t subCluster = ((uint32_t)e->firstClusterHigh << 16) | e->firstClusterLow;
+                    bool subIsDir = (e->attributes & FAT32_ATTR_DIRECTORY) != 0;
+
+                    fat32RemoveRecursive(vol, subCluster, subIsDir);
+                }
+            }
+            currentCluster = readFatEntry(vol, currentCluster);
+        }
+    }
+
+    // 释放簇链
+    fat32FreeClusterChain(vol, cluster);
+    return true;
+}
+
+// 标记目录项为已删除
+static bool fat32MarkEntryDeleted(fat32Volume* vol, uint32_t dirCluster, const char* name) {
+    uint32_t cluster = dirCluster;
+    while (cluster < FAT32_CLUSTER_END) {
+        uint32_t sector = clusterToSector(vol, cluster);
+        for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
+            ataReadSector(sector + s, sectorBuf);
+            fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
+            for (int i = 0; i < 16; i++) {
+                fat32DirEntry* e = &entries[i];
+                if (e->name[0] == 0x00) return false;
+                if (e->name[0] == 0xE5) continue;
+                if (e->attributes == 0x0F) continue;
+
+                char entryName[NAME_MAX + 1];
+                int n = 0;
+                for (int j = 0; j < 8 && e->name[j] != ' '; j++)
+                    entryName[n++] = e->name[j];
+                if (e->name[8] != ' ') {
+                    entryName[n++] = '.';
+                    for (int j = 8; j < 11 && e->name[j] != ' '; j++)
+                        entryName[n++] = e->name[j];
+                }
+                entryName[n] = '\0';
+
+                if (strcasecmp(entryName, name) == 0) {
+                    e->name[0] = 0xE5;
+                    ataWriteSector(sector + s, sectorBuf);
+                    return true;
+                }
+            }
+        }
+        cluster = readFatEntry(vol, cluster);
+    }
+    return false;
+}
+
+bool fat32Remove(fat32Volume* vol, const char* path) {
+    if (!vol->valid) return false;
+
+    char dir[PATH_MAX];
+    char name[NAME_MAX + 1];
+    pathSplit(path, dir, name);
+
+    uint32_t dirCluster;
+    if (!fat32PathToCluster(vol, dir, &dirCluster)) {
+        return false;
+    }
+
+    fat32DirEntry entry;
+    if (!fat32FindDirEntry(vol, dirCluster, name, &entry)) {
+        return false;
+    }
+
+    uint32_t cluster = ((uint32_t)entry.firstClusterHigh << 16) | entry.firstClusterLow;
+    bool isDirectory = (entry.attributes & FAT32_ATTR_DIRECTORY) != 0;
+
+    // 递归删除内容
+    if (!fat32RemoveRecursive(vol, cluster, isDirectory)) {
+        return false;
+    }
+
+    // 标记目录项已删除
+    return fat32MarkEntryDeleted(vol, dirCluster, name);
+}
+
+bool fat32Rename(fat32Volume* vol, const char* oldPath, const char* newName) {
+    if (!vol->valid) return false;
+
+    char dir[PATH_MAX];
+    char oldName[NAME_MAX + 1];
+    pathSplit(oldPath, dir, oldName);
+
+    uint32_t dirCluster;
+    if (!fat32PathToCluster(vol, dir, &dirCluster)) {
+        return false;
+    }
+
+    // 解析新名字为 8+3 格式
+    char shortName[11];
+    memset(shortName, ' ', 11);
+
+    int i = 0, j = 0;
+    while (newName[i] && newName[i] != '.' && j < 8) {
+        if (newName[i] >= 'a' && newName[i] <= 'z')
+            shortName[j++] = newName[i] - 32;
+        else
+            shortName[j++] = newName[i];
+        i++;
+    }
+
+    if (newName[i] == '.') i++;
+
+    j = 8;
+    while (newName[i] && j < 11) {
+        if (newName[i] >= 'a' && newName[i] <= 'z')
+            shortName[j++] = newName[i] - 32;
+        else
+            shortName[j++] = newName[i];
+        i++;
+    }
+
+    // 找到旧目录项
+    uint32_t cluster = dirCluster;
+    while (cluster < FAT32_CLUSTER_END) {
+        uint32_t sector = clusterToSector(vol, cluster);
+        for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
+            ataReadSector(sector + s, sectorBuf);
+            fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
+            for (int i = 0; i < 16; i++) {
+                fat32DirEntry* e = &entries[i];
+                if (e->name[0] == 0x00) return false;
+                if (e->name[0] == 0xE5) continue;
+                if (e->attributes == 0x0F) continue;
+
+                char entryName[NAME_MAX + 1];
+                int n = 0;
+                for (int j = 0; j < 8 && e->name[j] != ' '; j++)
+                    entryName[n++] = e->name[j];
+                if (e->name[8] != ' ') {
+                    entryName[n++] = '.';
+                    for (int j = 8; j < 11 && e->name[j] != ' '; j++)
+                        entryName[n++] = e->name[j];
+                }
+                entryName[n] = '\0';
+
+                if (strcasecmp(entryName, oldName) == 0) {
+                    memcpy(e->name, shortName, 11);
+                    ataWriteSector(sector + s, sectorBuf);
+                    return true;
+                }
+            }
+        }
+        cluster = readFatEntry(vol, cluster);
+    }
+    return false;
+}
+
 // 更新目录项的文件大小
 static bool fat32UpdateFileSize(fat32Volume* vol, uint32_t dirCluster,
                                  const char* name, uint32_t size) {
@@ -686,36 +856,41 @@ static bool fat32WriteByte(fat32Volume* vol, FileHandle* file, char byte) {
 bool fat32CopyFile(fat32Volume* vol, const char* srcPath, const char* dstPath) {
     if (!vol->valid) return false;
 
-    // 打开源文件
     FileHandle src;
     if (!fsOpen(&src, srcPath)) {
         return false;
     }
 
-    // 创建目标文件
     if (!fat32CreateEntry(vol, dstPath, false)) {
         fsClose(&src);
         return false;
     }
 
-    // 打开目标文件
     FileHandle dst;
     if (!fsOpen(&dst, dstPath)) {
         fsClose(&src);
         return false;
     }
 
-    // 逐字节复制
     char byte;
     uint32_t total = 0;
     while (fsRead(&src, &byte, 1) == 1) {
-        // 写一字节到目标
         if (!fat32WriteByte(vol, &dst, byte)) {
             fsClose(&src);
             fsClose(&dst);
             return false;
         }
         total++;
+    }
+
+    // 更新目标文件的目录项大小
+    char dir[PATH_MAX];
+    char name[NAME_MAX + 1];
+    pathSplit(dstPath, dir, name);
+
+    uint32_t dirCluster;
+    if (fat32PathToCluster(vol, dir, &dirCluster)) {
+        fat32UpdateFileSize(vol, dirCluster, name, total);
     }
 
     fsClose(&src);

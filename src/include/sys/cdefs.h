@@ -14,11 +14,13 @@
 #define __aligned(x) __attribute__((__aligned__(x)))
 #define __section(x) __attribute__((__section__(x)))
 #define __noreturn __attribute__((__noreturn__))
+#define __THROW
 #else
 #define __packed
 #define __aligned(x)
 #define __section(x)
 #define __noreturn
+#define __THROW
 #endif
 
 #endif

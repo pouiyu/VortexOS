@@ -2,7 +2,8 @@
 #include <keyboard.h>
 #include <sound.h>
 #include <vga.h>
-#include <string.h>
+#include <string/string.h>
+#include <stdint.h>
 #include <kernel.h>
 #include <sysinfo/sysinfo.h>
 #include <sysinfo/config.h>
@@ -10,6 +11,8 @@
 #include <shell/commands.h>
 #include <fs/fat32.h>
 #include "device.h"
+#include <mm/pmm.h>
+#include <mm/paging.h>
 
 uint8_t FG = COLOR_WHITE;
 uint8_t BG = COLOR_BLACK;
@@ -429,6 +432,12 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     } else {
         vgaPutStr("[FAT32] Init failed\n");
     }
+    pmmInit(256 * 1024 * 1024);  // 256MB
+    pagingInit();
+    vgaPutStr("[PMM] Initialized\n");
+    vgaPutStr("[PAGING] Initialized\n");
+    __asm__ volatile ("fninit");  // 初始化 FPU
+    vgaPutStr("[FPU] Initialized\n");
     //__asm__ volatile ("hlt");
     vgaDisableCursor();
     vgaSetColorByte(theme);
