@@ -3,7 +3,7 @@
 #include <sysinfo/config.h>
 #include <vga.h>
 #include <keyboard.h>
-#include <string.h>
+#include <string/string.h>
 #include <kernel.h>
 #include <fs/fat32.h>
 
@@ -49,6 +49,7 @@ static int getPromptLen(void) {
 }
 
 static void putPrompt(void) {
+    vgaFillLineColor();
     vgaPutStrColor(OS_NAME, HL);
     vgaPutStrColor(":", HL);
     vgaPutStrColor(shellGetCwd(), HL);
@@ -59,6 +60,8 @@ static void putPrompt(void) {
 
 static int shellExecute(const char* cmd) {
     if (cmd[0] == '\0') return 0;
+
+    uint8_t row, col;
 
     char* argv[16];
     int argc = 0;
@@ -84,6 +87,7 @@ static int shellExecute(const char* cmd) {
         }
     }
 
+    vgaFillLineColor();
     vgaPutStr(argv[0]);
     vgaPutStr(": command not found\n");
     return 0;

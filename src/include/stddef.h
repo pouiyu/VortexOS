@@ -5,7 +5,6 @@
 
 #define NULL ((void*)0)
 
-typedef uint32_t size_t;   // 如果 stdint.h 里没定义
-typedef int32_t  ptrdiff_t;
+typedef uint32_t size_t;
 
 #endif

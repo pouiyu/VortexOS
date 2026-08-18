@@ -1,17 +1,21 @@
 #include "commands.h"
 #include <sysinfo/config.h>
 #include <sysinfo/sysinfo.h>
-#include <stdlib.h>
+#include <stdlib/stdlib.h>
 #include "device.h"
 #include <vga.h>
-#include <string.h>
+#include <string/string.h>
 #include <fs/fat32.h>
 #include <fs/file.h>
 #include "shell.h"
+#include <rtc.h>
+#include <kernel.h>
 
 static int cmdHelp(int argc, char** argv);
 static int cmdClear(int argc, char** argv);
 static int cmdInfo(int argc, char** argv);
+static int cmdDate(int argc, char** argv);
+static int cmdTime(int argc, char** argv);
 static int cmdLs(int argc, char** argv);
 static int cmdCat(int argc, char** argv);
 static int cmdCd(int argc, char** argv);
@@ -21,6 +25,10 @@ static int cmdWr(int argc, char** argv);
 static int cmdCp(int argc, char** argv);
 static int cmdRm(int argc, char** argv);
 static int cmdRen(int argc, char** argv);
+static int cmdFg(int argc, char** argv);
+static int cmdBg(int argc, char** argv);
+static int cmdHl(int argc, char** argv);
+static int cmdLl(int argc, char** argv);
 static int cmdReboot(int argc, char** argv);
 static int cmdShutdown(int argc, char** argv);
 static int cmdEcho(int argc, char** argv);
@@ -30,19 +38,25 @@ static const shellCommand commandList[] = {
     {"help",     "Show available commands",        cmdHelp},
     {"clear",    "Clear the screen",               cmdClear},
     {"info",     "Show system information",        cmdInfo},
-    {"ls",       "Show all files or folders in the current directory",        cmdLs},
+    {"date",     "Show current date",              cmdDate},
+    {"time",     "Show current time",              cmdTime},
+    {"ls",       "Show all files or folders in the current directory", cmdLs},
     {"cat",      "Output the contents of a file",  cmdCat},
-    {"cd", "Change current directory", cmdCd},
-    {"pwd", "Print current directory", cmdPwd},
-    {"mk", "Create file or directory (-d to create directory)", cmdMk},
-    {"wr", "Write to file (-a to append)", cmdWr},
-    {"cp", "Copy file", cmdCp},
-    {"rm",  "Remove file or directory", cmdRm},
-    {"ren", "Rename file or directory", cmdRen},
+    {"cd",       "Change current directory",       cmdCd},
+    {"pwd",      "Print current directory",        cmdPwd},
+    {"mk",       "Create file or directory (-d to create directory)", cmdMk},
+    {"wr",       "Write to file (-a to append)",   cmdWr},
+    {"cp",       "Copy file",                      cmdCp},
+    {"rm",       "Remove file or directory",       cmdRm},
+    {"ren",      "Rename file or directory",       cmdRen},
+    {"fg",       "Set foreground color",           cmdFg},
+    {"bg",       "Set background color",           cmdBg},
+    {"hl",       "Set highlight color",            cmdHl},
+    {"ll",       "Set lowlight color",             cmdLl},
     {"reboot",   "Reboot the system",              cmdReboot},
     {"shutdown", "Shutdown the system",            cmdShutdown},
     {"echo",     "Print a line of text",           cmdEcho},
-    {"exit",     "Exit to main menu",           cmdExit},
+    {"exit",     "Exit to main menu",              cmdExit},
     {NULL, NULL, NULL}
 };
 
@@ -50,10 +64,35 @@ const shellCommand* getCommandList(void) {
     return commandList;
 }
 
+// 拼接完整路径
+static void makeFullPath(const char* input, char* output) {
+    if (input[0] == '/') {
+        strcpy(output, input);
+    } else {
+        const char* cwd = shellGetCwd();
+        if (strcmp(cwd, "/") == 0) {
+            strcpy(output, "/");
+            strcat(output, input);
+        } else {
+            strcpy(output, cwd);
+            strcat(output, "/");
+            strcat(output, input);
+        }
+    }
+}
+
+// 输出用法提示
+static void usage(const char* msg) {
+    vgaPutStr(msg);
+    vgaPutChar('\n');
+}
+
 static int cmdHelp(int argc, char** argv) {
     (void)argc;
     (void)argv;
+
     vgaPutStr("Available commands:\n");
+
     for (int i = 0; commandList[i].name; i++) {
         vgaPutStr("  ");
         vgaPutStr(commandList[i].name);
@@ -79,13 +118,46 @@ static int cmdInfo(int argc, char** argv) {
     return 0;
 }
 
+static int cmdDate(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+
+    RtcTime t;
+    rtcGetTime(&t);
+
+    putDecimal(t.year);
+    vgaPutChar('/');
+    putDecimal(t.month);
+    vgaPutChar('/');
+    putDecimal(t.day);
+    vgaPutChar('\n');
+
+    return 0;
+}
+
+static int cmdTime(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+
+    RtcTime t;
+    rtcGetTime(&t);
+
+    putDecimal(t.hour);
+    vgaPutChar(':');
+    putDecimal(t.minute);
+    vgaPutChar(':');
+    putDecimal(t.second);
+    vgaPutChar('\n');
+
+    return 0;
+}
+
 static int cmdLs(int argc, char** argv) {
     if (!fsVolume.valid) {
         vgaPutStr("FAT32 not initialized\n");
         return 0;
     }
 
-    // 动态分配
     char* buf = malloc(PATH_MAX * 4);
     if (!buf) {
         vgaPutStr("Out of memory\n");
@@ -93,23 +165,7 @@ static int cmdLs(int argc, char** argv) {
     }
 
     char fullPath[PATH_MAX];
-    if (argc > 1) {
-        if (argv[1][0] == '/') {
-            strcpy(fullPath, argv[1]);
-        } else {
-            const char* cwd = shellGetCwd();
-            if (strcmp(cwd, "/") == 0) {
-                strcpy(fullPath, "/");
-                strcat(fullPath, argv[1]);
-            } else {
-                strcpy(fullPath, cwd);
-                strcat(fullPath, "/");
-                strcat(fullPath, argv[1]);
-            }
-        }
-    } else {
-        strcpy(fullPath, shellGetCwd());
-    }
+    makeFullPath(argc > 1 ? argv[1] : shellGetCwd(), fullPath);
 
     if (!fat32ListDir(&fsVolume, fullPath, buf, PATH_MAX * 4)) {
         vgaPutStr("Failed to list directory\n");
@@ -124,23 +180,12 @@ static int cmdLs(int argc, char** argv) {
 
 static int cmdCat(int argc, char** argv) {
     if (argc < 2) {
-        vgaPutStr("Usage: cat <filename>\n");
+        usage("Usage: cat <filename>");
         return 0;
     }
 
     char fullPath[PATH_MAX];
-    if (argv[1][0] == '/') {
-        strcpy(fullPath, argv[1]);
-    } else {
-        const char* cwd = shellGetCwd();
-        if (strcmp(cwd, "/") == 0) {
-            strcpy(fullPath, "/");
-        } else {
-            strcpy(fullPath, cwd);
-            strcat(fullPath, "/");
-        }
-        strcat(fullPath, argv[1]);
-    }
+    makeFullPath(argv[1], fullPath);
 
     FileHandle file;
     if (!fsOpen(&file, fullPath)) {
@@ -174,43 +219,20 @@ static int cmdCat(int argc, char** argv) {
 
 static int cmdCd(int argc, char** argv) {
     if (argc < 2) {
-        vgaPutStr("Usage: cd <directory>\n");
+        usage("Usage: cd <directory>");
         return 0;
     }
 
-    const char* target = argv[1];
+    char fullPath[PATH_MAX];
+    makeFullPath(argv[1], fullPath);
 
-    // 如果是绝对路径
-    if (target[0] == '/') {
-        // 验证目录存在
-        uint32_t cluster;
-        if (!fat32PathToCluster(&fsVolume, target, &cluster)) {
-            vgaPutStr("Directory not found\n");
-            return 0;
-        }
-        shellSetCwd(target);
-    } else {
-        // 相对路径：拼接
-        char newPath[PATH_MAX];
-        const char* cwd = shellGetCwd();
-
-        if (strcmp(cwd, "/") == 0) {
-            strcpy(newPath, "/");
-            strcat(newPath, target);
-        } else {
-            strcpy(newPath, cwd);
-            strcat(newPath, "/");
-            strcat(newPath, target);
-        }
-
-        uint32_t cluster;
-        if (!fat32PathToCluster(&fsVolume, newPath, &cluster)) {
-            vgaPutStr("Directory not found\n");
-            return 0;
-        }
-        shellSetCwd(newPath);
+    uint32_t cluster;
+    if (!fat32PathToCluster(&fsVolume, fullPath, &cluster)) {
+        vgaPutStr("Directory not found\n");
+        return 0;
     }
 
+    shellSetCwd(fullPath);
     return 0;
 }
 
@@ -224,7 +246,7 @@ static int cmdPwd(int argc, char** argv) {
 
 static int cmdMk(int argc, char** argv) {
     if (argc < 2) {
-        vgaPutStr("Usage: mk <filename> or mk -d <dirname>\n");
+        usage("Usage: mk <filename> or mk -d <dirname>");
         return 0;
     }
 
@@ -233,31 +255,17 @@ static int cmdMk(int argc, char** argv) {
 
     if (strcmp(argv[1], "-d") == 0) {
         if (argc < 3) {
-            vgaPutStr("Usage: mk -d <dirname>\n");
+            usage("Usage: mk -d <dirname>");
             return 0;
         }
         isDirectory = true;
         name = argv[2];
     } else {
-        isDirectory = false;
         name = argv[1];
     }
 
     char fullPath[PATH_MAX];
-    const char* cwd = shellGetCwd();
-
-    if (name[0] == '/') {
-        strcpy(fullPath, name);
-    } else {
-        if (strcmp(cwd, "/") == 0) {
-            strcpy(fullPath, "/");
-            strcat(fullPath, name);
-        } else {
-            strcpy(fullPath, cwd);
-            strcat(fullPath, "/");
-            strcat(fullPath, name);
-        }
-    }
+    makeFullPath(name, fullPath);
 
     if (fat32CreateEntry(&fsVolume, fullPath, isDirectory)) {
         vgaPutStr(isDirectory ? "Directory created\n" : "File created\n");
@@ -270,7 +278,7 @@ static int cmdMk(int argc, char** argv) {
 
 static int cmdWr(int argc, char** argv) {
     if (argc < 3) {
-        vgaPutStr("Usage: wr <file> \"content\" or wr -a <file> \"content\"\n");
+        usage("Usage: wr <file> \"content\" or wr -a <file> \"content\"");
         return 0;
     }
 
@@ -280,7 +288,7 @@ static int cmdWr(int argc, char** argv) {
 
     if (strcmp(argv[1], "-a") == 0) {
         if (argc < 4) {
-            vgaPutStr("Usage: wr -a <file> \"content\"\n");
+            usage("Usage: wr -a <file> \"content\"");
             return 0;
         }
         append = true;
@@ -291,7 +299,6 @@ static int cmdWr(int argc, char** argv) {
         content = argv[2];
     }
 
-    // 去掉双引号
     char cleanContent[512];
     int len = strlen(content);
     if (len >= 2 && content[0] == '"' && content[len - 1] == '"') {
@@ -301,32 +308,17 @@ static int cmdWr(int argc, char** argv) {
         strcpy(cleanContent, content);
     }
 
-    // 合并多个参数
     for (int i = append ? 4 : 3; i < argc; i++) {
         strcat(cleanContent, " ");
         strcat(cleanContent, argv[i]);
-        // 如果最后有引号，去掉
         int clen = strlen(cleanContent);
         if (clen > 0 && cleanContent[clen - 1] == '"') {
             cleanContent[clen - 1] = '\0';
         }
     }
 
-    // 拼接完整路径
     char fullPath[PATH_MAX];
-    const char* cwd = shellGetCwd();
-    if (filename[0] == '/') {
-        strcpy(fullPath, filename);
-    } else {
-        if (strcmp(cwd, "/") == 0) {
-            strcpy(fullPath, "/");
-            strcat(fullPath, filename);
-        } else {
-            strcpy(fullPath, cwd);
-            strcat(fullPath, "/");
-            strcat(fullPath, filename);
-        }
-    }
+    makeFullPath(filename, fullPath);
 
     if (fat32WriteFile(&fsVolume, fullPath, cleanContent, append)) {
         vgaPutStr("Written\n");
@@ -339,40 +331,14 @@ static int cmdWr(int argc, char** argv) {
 
 static int cmdCp(int argc, char** argv) {
     if (argc < 3) {
-        vgaPutStr("Usage: cp <src> <dst>\n");
+        usage("Usage: cp <src> <dst>");
         return 0;
     }
 
-    // 拼接源路径
     char srcPath[PATH_MAX];
-    const char* cwd = shellGetCwd();
-    if (argv[1][0] == '/') {
-        strcpy(srcPath, argv[1]);
-    } else {
-        if (strcmp(cwd, "/") == 0) {
-            strcpy(srcPath, "/");
-            strcat(srcPath, argv[1]);
-        } else {
-            strcpy(srcPath, cwd);
-            strcat(srcPath, "/");
-            strcat(srcPath, argv[1]);
-        }
-    }
-
-    // 拼接目标路径
     char dstPath[PATH_MAX];
-    if (argv[2][0] == '/') {
-        strcpy(dstPath, argv[2]);
-    } else {
-        if (strcmp(cwd, "/") == 0) {
-            strcpy(dstPath, "/");
-            strcat(dstPath, argv[2]);
-        } else {
-            strcpy(dstPath, cwd);
-            strcat(dstPath, "/");
-            strcat(dstPath, argv[2]);
-        }
-    }
+    makeFullPath(argv[1], srcPath);
+    makeFullPath(argv[2], dstPath);
 
     if (fat32CopyFile(&fsVolume, srcPath, dstPath)) {
         vgaPutStr("Copied\n");
@@ -385,24 +351,12 @@ static int cmdCp(int argc, char** argv) {
 
 static int cmdRm(int argc, char** argv) {
     if (argc < 2) {
-        vgaPutStr("Usage: rm <file or directory>\n");
+        usage("Usage: rm <file or directory>");
         return 0;
     }
 
     char fullPath[PATH_MAX];
-    const char* cwd = shellGetCwd();
-    if (argv[1][0] == '/') {
-        strcpy(fullPath, argv[1]);
-    } else {
-        if (strcmp(cwd, "/") == 0) {
-            strcpy(fullPath, "/");
-            strcat(fullPath, argv[1]);
-        } else {
-            strcpy(fullPath, cwd);
-            strcat(fullPath, "/");
-            strcat(fullPath, argv[1]);
-        }
-    }
+    makeFullPath(argv[1], fullPath);
 
     if (fat32Remove(&fsVolume, fullPath)) {
         vgaPutStr("Removed\n");
@@ -414,30 +368,126 @@ static int cmdRm(int argc, char** argv) {
 
 static int cmdRen(int argc, char** argv) {
     if (argc < 3) {
-        vgaPutStr("Usage: ren <old> <new>\n");
+        usage("Usage: ren <old> <new>");
         return 0;
     }
 
     char fullPath[PATH_MAX];
-    const char* cwd = shellGetCwd();
-    if (argv[1][0] == '/') {
-        strcpy(fullPath, argv[1]);
-    } else {
-        if (strcmp(cwd, "/") == 0) {
-            strcpy(fullPath, "/");
-            strcat(fullPath, argv[1]);
-        } else {
-            strcpy(fullPath, cwd);
-            strcat(fullPath, "/");
-            strcat(fullPath, argv[1]);
-        }
-    }
+    makeFullPath(argv[1], fullPath);
 
     if (fat32Rename(&fsVolume, fullPath, argv[2])) {
         vgaPutStr("Renamed\n");
     } else {
         vgaPutStr("Rename failed\n");
     }
+    return 0;
+}
+
+// 颜色名转数字
+static int colorNameToIndex(const char* name) {
+    static const char* colorNames[] = {
+        "black", "blue", "green", "cyan", "red", "magenta",
+        "brown", "light_grey", "dark_grey", "light_blue",
+        "light_green", "light_cyan", "light_red", "light_magenta",
+        "yellow", "white"
+    };
+
+    for (int i = 0; i < 16; i++) {
+        if (strcasecmp(name, colorNames[i]) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// 解析颜色参数
+static int parseColor(const char* arg) {
+    if (arg[0] >= '0' && arg[0] <= '9') {
+        int val = 0;
+        for (int i = 0; arg[i]; i++) {
+            val = val * 10 + (arg[i] - '0');
+        }
+        if (val >= 0 && val <= 15) return val;
+        return -1;
+    }
+    return colorNameToIndex(arg);
+}
+
+static int cmdFg(int argc, char** argv) {
+    if (argc < 2) {
+        usage("Usage: fg <color>");
+        return 0;
+    }
+
+    int color = parseColor(argv[1]);
+    if (color < 0 || color > 15) {
+        vgaPutStr("Invalid color\n");
+        return 0;
+    }
+
+    if (color == BG) {
+        vgaPutStr("FG cannot equal BG\n");
+        return 0;
+    }
+
+    FG = color;
+    updateTheme();
+    return 0;
+}
+
+static int cmdBg(int argc, char** argv) {
+    if (argc < 2) {
+        usage("Usage: bg <color>");
+        return 0;
+    }
+
+    int color = parseColor(argv[1]);
+    if (color < 0 || color > 15) {
+        vgaPutStr("Invalid color\n");
+        return 0;
+    }
+
+    if (color == FG) {
+        vgaPutStr("BG cannot equal FG\n");
+        return 0;
+    }
+
+    BG = color;
+    HL = VGA_COLOR(HL & 0x0F, BG);
+    LL = VGA_COLOR(LL & 0x0F, BG);
+    updateTheme();
+    return 0;
+}
+
+static int cmdHl(int argc, char** argv) {
+    if (argc < 2) {
+        usage("Usage: hl <color>");
+        return 0;
+    }
+
+    int color = parseColor(argv[1]);
+    if (color < 0 || color > 15) {
+        vgaPutStr("Invalid color\n");
+        return 0;
+    }
+
+    HL = VGA_COLOR(color, BG);
+    return 0;
+}
+
+static int cmdLl(int argc, char** argv) {
+    if (argc < 2) {
+        usage("Usage: ll <color>");
+        return 0;
+    }
+
+    int color = parseColor(argv[1]);
+    if (color < 0 || color > 15) {
+        vgaPutStr("Invalid color\n");
+        return 0;
+    }
+
+    LL = VGA_COLOR(color, BG);
     return 0;
 }
 

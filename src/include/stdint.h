@@ -59,4 +59,6 @@ typedef uint64_t uintmax_t;
 #define UINT32_MAX  4294967295U
 #define UINT64_MAX  18446744073709551615ULL
 
+typedef uint32_t size_t;
+
 #endif

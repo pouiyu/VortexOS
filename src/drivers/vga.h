@@ -66,6 +66,10 @@ uint8_t vgaGetCursorCol(void);
 
 void vgaInit(void);
 void vgaClear(void);
+void vgaClearColor(void);
+void vgaClearFgColor(void);
+void vgaClearBgColor(void);
+void vgaClearChar(char c);
 void vgaSetCursorPos(uint8_t row, uint8_t col);
 void vgaGetCursorPos(uint8_t* row, uint8_t* col);
 void vgaSetCursorStyle(uint8_t start, uint8_t end);
@@ -78,11 +82,12 @@ void vgaPutStrColor(const char* str, uint8_t color);
 void vgaScroll(uint8_t lines);
 void vgaSetColor(uint8_t foreground, uint8_t background);
 uint8_t vgaGetColor(void);
+void putDecimal(uint32_t value);
 void vgaPutHex8(uint8_t value);
 void vgaPutHex16(uint16_t value);
 void vgaPutHex32(uint32_t value);
 void vgaPutColor(void);
-void vgaPutColorRow(uint8_t row);
+void vgaFillLineColor(void);
 void vgaPutColorRange(uint8_t row, uint8_t startCol, uint8_t endCol);
 
 #endif

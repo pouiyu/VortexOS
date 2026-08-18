@@ -43,7 +43,7 @@ static const char* const ColorOptions[] = {
     "White"
 };
 
-#define COLOR_COUNT (sizeof(ColorOptions) / sizeof(ColorOptions[0]))
+int colorCount = (sizeof(ColorOptions) / sizeof(ColorOptions[0]));
 
 typedef enum {
     MENU_MAIN,
@@ -130,7 +130,7 @@ static bool popMenu(void) {
     return false;
 }
 
-static void updateTheme(void) {
+void updateTheme(void) {
     theme = VGA_COLOR(FG, BG);
     vgaSetColorByte(theme);
 }
@@ -160,7 +160,7 @@ static int getCurrentSize(void) {
         case MENU_SETTINGS_THEME_HL:
         case MENU_SETTINGS_THEME_LL:
         case MENU_SETTINGS_THEME_FG:
-        case MENU_SETTINGS_THEME_BG:  return COLOR_COUNT;
+        case MENU_SETTINGS_THEME_BG:  return colorCount;
         case MENU_CONFIRM_REBOOT:
         case MENU_CONFIRM_SHUTDOWN:   return CONFIRM_SIZE;
         default:                      return 0;
@@ -221,7 +221,7 @@ static void drawAboutMenu(void) {
 static void drawThemeMenu(const char* label) {
     vgaClear();
     drawTitle(label);
-    drawOptions(ColorOptions, COLOR_COUNT);
+    drawOptions(ColorOptions, colorCount);
 }
 
 static void drawThemeOptionsMenu(void) {
@@ -329,7 +329,7 @@ static void handleThemeSelect(void) {
 }
 
 static void handleThemeFGSelect(void) {
-    if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < colorCount) {
         uint8_t newFG = (uint8_t)selectIndex;
         if (newFG == BG) {
             vgaClear();
@@ -344,7 +344,7 @@ static void handleThemeFGSelect(void) {
 }
 
 static void handleThemeHLSelect(void) {
-    if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < colorCount) {
         HL = VGA_COLOR((uint8_t)selectIndex, BG);
     }
     popMenu();
@@ -352,7 +352,7 @@ static void handleThemeHLSelect(void) {
 }
 
 static void handleThemeLLSelect(void) {
-    if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < colorCount) {
         LL = VGA_COLOR((uint8_t)selectIndex, BG);
     }
     popMenu();
@@ -360,7 +360,7 @@ static void handleThemeLLSelect(void) {
 }
 
 static void handleThemeBGSelect(void) {
-    if (selectIndex >= 0 && (unsigned int)selectIndex < COLOR_COUNT) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < colorCount) {
         uint8_t newBG = (uint8_t)selectIndex;
         if (newBG == FG) {
             vgaClear();
@@ -415,47 +415,61 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     (void)magic;
     (void)addr;
 
+    serialPutStr("VortexOS\n");
+
     theme = VGA_COLOR(FG, BG);
     HL = vgaEntryColor(COLOR_LIGHT_BLUE, BG);
     LL = vgaEntryColor(COLOR_LIGHT_GREY, BG);
 
-    
-    vgaInit();
-    vgaPutStr("[VGA] Initialized\n");
-    idtInit();
-    vgaPutStr("[IDT] Initialized\n");
-    vgaPutStr("[EXCEPTIONS] Initialized\n");
-    keyboardInit();
-    vgaPutStr("[KEYBOARD] Initialized\n");
-    if (fat32Init(&fsVolume)) {
-        vgaPutStr("[FAT32] Initialized\n");
-    } else {
-        vgaPutStr("[FAT32] Init failed\n");
-    }
-    pmmInit(256 * 1024 * 1024);  // 256MB
+    pmmInit(256 * 1024 * 1024);  // 256MB PMM 最先初始化
     pagingInit();
     vgaPutStr("[PMM] Initialized\n");
     vgaPutStr("[PAGING] Initialized\n");
+    serialInit();
+    vgaPutStr("[SERIAL] Initialized\n");
+
+    serialPutStr("[PMM] Initialized\n");// 调试信息
+    serialPutStr("[PAGING] Initialized\n");// 调试信息
+    serialPutStr("[SERIAL] Initialized\n");// 调试信息
+
+    vgaInit();
+    vgaPutStr("[VGA] Initialized\n");
+    serialPutStr("[VGA] Initialized\n");// 调试信息
+    idtInit();
+    vgaPutStr("[IDT] Initialized\n");
+    serialPutStr("[IDT] Initialized\n");// 调试信息
+    vgaPutStr("[EXCEPTIONS] Initialized\n");
+    serialPutStr("[EXCEPTIONS] Initialized\n");// 调试信息
+    keyboardInit();
+    vgaPutStr("[KEYBOARD] Initialized\n");
+    serialPutStr("[KEYBOARD] Initialized\n");// 调试信息
+
+    if (fat32Init(&fsVolume)) {
+        vgaPutStr("[FAT32] Initialized\n");
+        serialPutStr("[FAT32] Initialized\n");// 调试信息
+    } else {
+        vgaPutStr("[FAT32] Init failed\n");
+        serialPutStr("[FAT32] Init failed\n");// 调试信息
+    }
+
     __asm__ volatile ("fninit");  // 初始化 FPU
     vgaPutStr("[FPU] Initialized\n");
+    serialPutStr("[FPU] Initialized\n");// 调试信息
+
     //__asm__ volatile ("hlt");
+
     vgaDisableCursor();
     vgaSetColorByte(theme);
     vgaClear();
     drawMainMenu();
 
-    // int a = 1;
-    // int b = 0;
-    // int c = a / b;
-
     __asm__ volatile ("sti");
+    serialPutStr("Enable Interrupt\n");
 
     for (;;) {
         if (keyboardHasChar()) {
             unsigned char c = keyboardGetChar();
             int size = getCurrentSize();
-
-            // vgaPutHex8(c);
 
             if (c == KEY_ESC) {
                 if (!popMenu()) {
@@ -463,14 +477,17 @@ void kernel_main(unsigned int magic, unsigned int addr) {
                 }
                 drawCurrentMenu();
             } else if (c == KEY_UP || c == 'w' || c == 'W') {
+                serialPutStr("up\n");
                 if (--selectedIndex < 0)
                     selectedIndex = size - 1;
                 drawCurrentMenu();
             } else if (c == KEY_DOWN || c == 's' || c == 'S') {
+                serialPutStr("down\n");
                 if (++selectedIndex >= size)
                     selectedIndex = 0;
                 drawCurrentMenu();
             } else if (c == '\r' || c == '\n' || c == ' ') {
+                serialPutStr("ok\n");
                 selectIndex = selectedIndex;
                 handleSelect();
             }

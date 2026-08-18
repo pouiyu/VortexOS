@@ -1,5 +1,5 @@
 #include <vga.h>
-#include <stdio.h>
+#include "stdio.h"
 #include <io.h>
 
 static uint16_t* videoMemory = (uint16_t*) VGA_MEMORY;
@@ -62,22 +62,14 @@ void vgaPutColor(void) {
     videoMemory[index] = vgaEntry(ch, currentColor);
 }
 
-void vgaPutColorRow(uint8_t row) {
-    for (int col = 0; col < VGA_WIDTH; col++) {
-        size_t index = row * VGA_WIDTH + col;
-        uint16_t entry = videoMemory[index];
-        uint8_t ch = entry & 0xFF;
-        videoMemory[index] = vgaEntry(ch, currentColor);
-    }
-}
+void vgaFillLineColor(void) {
+    uint8_t row, col;
+    vgaGetCursorPos(&row, &col);
 
-void vgaPutColorRange(uint8_t row, uint8_t startCol, uint8_t endCol) {
-    for (int col = startCol; col < endCol; col++) {
-        size_t index = row * VGA_WIDTH + col;
-        uint16_t entry = videoMemory[index];
-        uint8_t ch = entry & 0xFF;
-        videoMemory[index] = vgaEntry(ch, currentColor);
-    }
+    for (int i = col; i < VGA_WIDTH; i++)
+        vgaPutChar(' ');
+
+    vgaSetCursorPos(row, col);
 }
 
 void vgaClear(void) {
@@ -90,6 +82,42 @@ void vgaClear(void) {
     cursorRow = 0;
     cursorCol = 0;
     vgaSetCursorPos(0, 0);
+}
+
+void vgaClearColor(void) {
+    for (int row = 0; row < VGA_HEIGHT; row++) {
+        for (int col = 0; col < VGA_WIDTH; col++) {
+            size_t index = row * VGA_WIDTH + col;
+            videoMemory[index] = vgaEntry(videoMemory[index], currentColor);
+        }
+    }
+}
+
+void vgaClearFgColor(void) {
+    for (int row = 0; row < VGA_HEIGHT; row++) {
+        for (int col = 0; col < VGA_WIDTH; col++) {
+            size_t index = row * VGA_WIDTH + col;
+            videoMemory[index] = vgaEntry(videoMemory[index], currentColor>>4);
+        }
+    }
+}
+
+void vgaClearBgColor(void) {
+    for (int row = 0; row < VGA_HEIGHT; row++) {
+        for (int col = 0; col < VGA_WIDTH; col++) {
+            size_t index = row * VGA_WIDTH + col;
+            videoMemory[index] = vgaEntry(videoMemory[index], (currentColor&0x0F)<<4);
+        }
+    }
+}
+
+void vgaClearChar(char c) {
+    for (int row = 0; row < VGA_HEIGHT; row++) {
+        for (int col = 0; col < VGA_WIDTH; col++) {
+            size_t index = row * VGA_WIDTH + col;
+            videoMemory[index] = vgaEntry(c, videoMemory[index+1]);
+        }
+    }
 }
 
 void vgaPutChar(char c) {
@@ -179,6 +207,25 @@ void vgaSetColor(uint8_t foreground, uint8_t background) {
 
 uint8_t vgaGetColor(void) {
     return currentColor;
+}
+
+void putDecimal(uint32_t value) {
+    char buf[16];
+    int i = 0;
+
+    if (value == 0) {
+        vgaPutChar('0');
+        return;
+    }
+
+    while (value > 0) {
+        buf[i++] = '0' + (value % 10);
+        value /= 10;
+    }
+
+    while (i > 0) {
+        vgaPutChar(buf[--i]);
+    }
 }
 
 void vgaPutHex8(uint8_t value) {
