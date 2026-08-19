@@ -13,6 +13,9 @@
 #include "device.h"
 #include <mm/pmm.h>
 #include <mm/paging.h>
+#include "tss.h"
+#include "syscall.h"
+#include "user.h"
 
 uint8_t FG = COLOR_WHITE;
 uint8_t BG = COLOR_BLACK;
@@ -43,7 +46,7 @@ static const char* const ColorOptions[] = {
     "White"
 };
 
-int colorCount = (sizeof(ColorOptions) / sizeof(ColorOptions[0]));
+unsigned int colorCount = (sizeof(ColorOptions) / sizeof(ColorOptions[0]));
 
 typedef enum {
     MENU_MAIN,
@@ -329,7 +332,7 @@ static void handleThemeSelect(void) {
 }
 
 static void handleThemeFGSelect(void) {
-    if (selectIndex >= 0 && (unsigned int)selectIndex < colorCount) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < (unsigned int)colorCount) {
         uint8_t newFG = (uint8_t)selectIndex;
         if (newFG == BG) {
             vgaClear();
@@ -344,7 +347,7 @@ static void handleThemeFGSelect(void) {
 }
 
 static void handleThemeHLSelect(void) {
-    if (selectIndex >= 0 && (unsigned int)selectIndex < colorCount) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < (unsigned int)colorCount) {
         HL = VGA_COLOR((uint8_t)selectIndex, BG);
     }
     popMenu();
@@ -352,7 +355,7 @@ static void handleThemeHLSelect(void) {
 }
 
 static void handleThemeLLSelect(void) {
-    if (selectIndex >= 0 && (unsigned int)selectIndex < colorCount) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < (unsigned int)colorCount) {
         LL = VGA_COLOR((uint8_t)selectIndex, BG);
     }
     popMenu();
@@ -360,7 +363,7 @@ static void handleThemeLLSelect(void) {
 }
 
 static void handleThemeBGSelect(void) {
-    if (selectIndex >= 0 && (unsigned int)selectIndex < colorCount) {
+    if (selectIndex >= 0 && (unsigned int)selectIndex < (unsigned int)colorCount) {
         uint8_t newBG = (uint8_t)selectIndex;
         if (newBG == FG) {
             vgaClear();
@@ -421,12 +424,20 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     HL = vgaEntryColor(COLOR_LIGHT_BLUE, BG);
     LL = vgaEntryColor(COLOR_LIGHT_GREY, BG);
 
+    vgaPutStr("[GDT] Initialized\n");
+    serialPutStr("[GDT] Initialized\n");
+
     pmmInit(256 * 1024 * 1024);  // 256MB PMM 最先初始化
     pagingInit();
     vgaPutStr("[PMM] Initialized\n");
     vgaPutStr("[PAGING] Initialized\n");
     serialInit();
     vgaPutStr("[SERIAL] Initialized\n");
+
+    static uint8_t kernelStack[4096] __attribute__((aligned(16)));
+    tssInit((uint32_t)kernelStack + sizeof(kernelStack));
+    vgaPutStr("[TSS] Initialized\n");
+    serialPutStr("[TSS] Initialized\n");
 
     serialPutStr("[PMM] Initialized\n");// 调试信息
     serialPutStr("[PAGING] Initialized\n");// 调试信息
@@ -438,6 +449,9 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     idtInit();
     vgaPutStr("[IDT] Initialized\n");
     serialPutStr("[IDT] Initialized\n");// 调试信息
+    syscallInit();
+    vgaPutStr("[SYSCALL] Initialized\n");
+    serialPutStr("[SYSCALL] Initialized\n");// 调试信息
     vgaPutStr("[EXCEPTIONS] Initialized\n");
     serialPutStr("[EXCEPTIONS] Initialized\n");// 调试信息
     keyboardInit();
@@ -457,6 +471,10 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     serialPutStr("[FPU] Initialized\n");// 调试信息
 
     //__asm__ volatile ("hlt");
+
+    serialPutStr("userTest addr: 0x");
+    serialPutHex32((uint32_t)userTest);
+    serialPutStr("\n");
 
     vgaDisableCursor();
     vgaSetColorByte(theme);

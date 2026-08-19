@@ -11,24 +11,36 @@ void pagingInit(void) {
     pageDir = (uint32_t*)pmmAllocPage();
     memset(pageDir, 0, PAGE_SIZE);
 
-    // 映射前 256MB（假设 256MB 内存）
     uint32_t* pageTable;
-    for (uint32_t dirIndex = 0; dirIndex < 64; dirIndex++) {  // 64 × 4MB = 256MB
+    for (uint32_t dirIndex = 0; dirIndex < 64; dirIndex++) {
         pageTable = (uint32_t*)pmmAllocPage();
         memset(pageTable, 0, PAGE_SIZE);
 
         for (int i = 0; i < 1024; i++) {
-            pageTable[i] = ((dirIndex * 1024 + i) * PAGE_SIZE) | PAGE_PRESENT | PAGE_WRITABLE;
+            pageTable[i] = ((dirIndex * 1024 + i) * PAGE_SIZE) | 
+                           PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
         }
 
-        pageDir[dirIndex] = ((uint32_t)pageTable) | PAGE_PRESENT | PAGE_WRITABLE;
+        pageDir[dirIndex] = ((uint32_t)pageTable) | 
+                            PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
     }
 
     __asm__ volatile ("mov %0, %%cr3" : : "r"(pageDir));
+
     uint32_t cr0;
     __asm__ volatile ("mov %%cr0, %0" : "=r"(cr0));
     cr0 |= 0x80000000;
     __asm__ volatile ("mov %0, %%cr0" : : "r"(cr0));
+
+    uint32_t* pde = (uint32_t*)0x00400000;  // 页目录
+    serialPutStr("PDE[0]=");
+    serialPutHex32(pde[0]);
+    serialPutStr("\n");
+
+    uint32_t* pte = (uint32_t*)(pde[0] & 0xFFFFF000);
+    serialPutStr("PTE[0x300]=");
+    serialPutHex32(pte[0x300]);
+    serialPutStr("\n");
 }
 
 void pagingMapPage(uint32_t virtualAddr, uint32_t physAddr, uint32_t flags) {

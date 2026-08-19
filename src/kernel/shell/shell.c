@@ -8,6 +8,11 @@
 #include <fs/fat32.h>
 
 #define MAX_INPUT 256
+#define MAX_HISTORY 32
+
+static char history[MAX_HISTORY][MAX_INPUT];
+static int  historyCount = 0;
+static int  historyIndex = -1;
 
 static char inputBuf[MAX_INPUT];
 static int  inputLen = 0;
@@ -18,6 +23,21 @@ static const char* prompt = OS_NAME "> ";
 static int promptLen = 0;  // 提示符长度，init 时计算
 
 static int shellRow = 0;  // 提示符所在行
+
+static void historyAdd(const char* cmd) {
+    if (cmd[0] == '\0') return;
+
+    if (historyCount < MAX_HISTORY) {
+        strcpy(history[historyCount], cmd);
+        historyCount++;
+    } else {
+        // 满了，整体前移
+        for (int i = 0; i < MAX_HISTORY - 1; i++) {
+            strcpy(history[i], history[i + 1]);
+        }
+        strcpy(history[MAX_HISTORY - 1], cmd);
+    }
+}
 
 const char* shellGetCwd(void) {
     return currentDir;
@@ -120,6 +140,9 @@ void runShell(void) {
                 vgaPutChar('\n');
                 inputBuf[inputLen] = '\0';
 
+                historyAdd(inputBuf);
+                historyIndex = -1;
+
                 if (shellExecute(inputBuf) == 1)
                     return;
 
@@ -145,6 +168,30 @@ void runShell(void) {
                     cursorPos--;
                     shellRedrawLine();
                 }
+            } else if (c == KEY_UP) {
+                if (historyCount > 0) {
+                    if (historyIndex < historyCount - 1) {
+                        historyIndex++;
+                        strcpy(inputBuf, history[historyCount - 1 - historyIndex]);
+                        inputLen = strlen(inputBuf);
+                        cursorPos = inputLen;
+                        shellRedrawLine();
+                    }
+                }
+            } else if (c == KEY_DOWN) {
+                if (historyIndex >= 0) {
+                    historyIndex--;
+                    if (historyIndex < 0) {
+                        inputBuf[0] = '\0';
+                        inputLen = 0;
+                        cursorPos = 0;
+                    } else {
+                        strcpy(inputBuf, history[historyCount - 1 - historyIndex]);
+                        inputLen = strlen(inputBuf);
+                        cursorPos = inputLen;
+                    }
+                    shellRedrawLine();
+                }
             } else if (c == KEY_LEFT) {
                 if (cursorPos > 0) {
                     cursorPos--;
@@ -162,7 +209,8 @@ void runShell(void) {
                     vgaSetCursorPos(row, col);
                 }
             } else if (c >= ' ' && c <= '~' && inputLen < MAX_INPUT - 1) {
-                // 在 cursorPos 处插入字符
+                historyIndex = -1;  // 加这行
+
                 for (int i = inputLen; i > cursorPos; i--)
                     inputBuf[i] = inputBuf[i - 1];
                 inputBuf[cursorPos] = c;

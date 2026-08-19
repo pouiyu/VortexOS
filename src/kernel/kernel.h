@@ -10,7 +10,7 @@ extern uint8_t FG;
 extern uint8_t BG;
 extern uint8_t HL;
 extern uint8_t LL;
-extern int colorCount;
+extern unsigned int colorCount;
 
 void vgaSetColorByte(uint8_t color);
 void messageBox(const char* msg);

@@ -36,6 +36,10 @@ extern exc29
 extern exc30
 extern exc31
 extern keyboardIRQHandler
+extern vgaPutStr
+extern keyboardHasChar
+extern keyboardGetChar
+
 
 %macro ISR_NOERR 1
 global isr%1
@@ -52,7 +56,11 @@ isr%1:
     mov es, ax
     mov fs, ax
     mov gs, ax
+
+    push esp
     call exc%1
+    add esp, 4
+
     pop gs
     pop fs
     pop es
@@ -76,7 +84,11 @@ isr%1:
     mov es, ax
     mov fs, ax
     mov gs, ax
+
+    push esp
     call exc%1
+    add esp, 4
+
     pop gs
     pop fs
     pop es
@@ -135,3 +147,45 @@ idtLoad:
     mov eax, [esp + 4]
     lidt [eax]
     ret
+
+
+global syscall_entry
+extern syscallHandler
+
+syscall_entry:
+    pusha
+
+    cmp eax, 1          ; SYS_WRITE
+    je .do_write
+    cmp eax, 2          ; SYS_READ
+    je .do_read
+    cmp eax, 3          ; SYS_EXIT
+    je .do_exit
+    jmp .done
+
+.do_write:
+    push ebx
+    call vgaPutStr
+    add esp, 4
+    jmp .done
+
+.do_read:
+    ; 等待键盘
+.wait_key:
+    call keyboardHasChar
+    test eax, eax
+    jz .wait_key
+
+    call keyboardGetChar
+    ; 存到 buf（ebx）
+    mov [ebx], al
+    jmp .done
+
+.do_exit:
+    cli
+    hlt
+    jmp .do_exit
+
+.done:
+    popa
+    iret

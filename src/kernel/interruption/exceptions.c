@@ -31,28 +31,60 @@ static const char* exceptionNames[32] = {
 };
 
 static void panic(ExceptionFrame* frame) {
-    vgaSetColor(COLOR_LIGHT_RED, COLOR_BLACK);
+    vgaSetColor(COLOR_WHITE, COLOR_RED);
     vgaClear();
 
+    vgaPutStr("=== EXCEPTION ===\n\n");
+
     if (frame->intNum < 32) {
-        vgaPutStrColor("EXCEPTION: ", COLOR_RED);
+        vgaPutStr("Type: ");
         vgaPutStr(exceptionNames[frame->intNum]);
     } else {
-        vgaPutStrColor("UNKNOWN: ", COLOR_RED);
+        vgaPutStr("Unknown interrupt: 0x");
         vgaPutHex32(frame->intNum);
     }
-
-    vgaPutStr("\n\n");
-    vgaPutStrColor("Error code: ", COLOR_RED);
-    vgaPutStr("0x");
-    vgaPutHex32(frame->errCode);
-    vgaPutStrColor("\nEIP: ", COLOR_RED);
-    vgaPutStr("0x");
-    vgaPutHex32(frame->eip);
-    vgaPutStrColor("\nESP: ", COLOR_RED);
-    vgaPutStr("0x");
-    vgaPutHex32(frame->esp);
     vgaPutStr("\n");
+
+    vgaPutStr("Error code: 0x");
+    vgaPutHex32(frame->errCode);
+    vgaPutStr("\n");
+
+    vgaPutStr("EIP: 0x");
+    vgaPutHex32(frame->eip);
+    vgaPutStr("  ESP: 0x");
+    vgaPutHex32(frame->esp);
+    vgaPutStr("  EBP: 0x");
+    vgaPutHex32(frame->ebp);
+    vgaPutStr("\n");
+
+    vgaPutStr("CS: 0x");
+    vgaPutHex32(frame->cs);
+    vgaPutStr("  SS: 0x");
+    vgaPutHex32(frame->ss);
+    vgaPutStr("  EFLAGS: 0x");
+    vgaPutHex32(frame->eflags);
+    vgaPutStr("\n");
+
+    vgaPutStr("UserESP: 0x");
+    vgaPutHex32(frame->useresp);
+    vgaPutStr("\n\n");
+
+    vgaPutStr("Registers:\n");
+    vgaPutStr("  EAX: 0x"); vgaPutHex32(frame->eax); vgaPutStr("\n");
+    vgaPutStr("  EBX: 0x"); vgaPutHex32(frame->ebx); vgaPutStr("\n");
+    vgaPutStr("  ECX: 0x"); vgaPutHex32(frame->ecx); vgaPutStr("\n");
+    vgaPutStr("  EDX: 0x"); vgaPutHex32(frame->edx); vgaPutStr("\n");
+    vgaPutStr("  ESI: 0x"); vgaPutHex32(frame->esi); vgaPutStr("\n");
+    vgaPutStr("  EDI: 0x"); vgaPutHex32(frame->edi); vgaPutStr("\n");
+
+    vgaPutStr("\nSegments:\n");
+    vgaPutStr("  DS: 0x"); vgaPutHex32(frame->ds); vgaPutStr("\n");
+    vgaPutStr("  ES: 0x"); vgaPutHex32(frame->es); vgaPutStr("\n");
+    vgaPutStr("  FS: 0x"); vgaPutHex32(frame->fs); vgaPutStr("\n");
+    vgaPutStr("  GS: 0x"); vgaPutHex32(frame->gs); vgaPutStr("\n");
+
+    vgaPutStr("\nSystem halted.\n");
+
     for (;;) __asm__ volatile ("hlt");
 }
 

@@ -83,6 +83,7 @@ static void makeFullPath(const char* input, char* output) {
 
 // 输出用法提示
 static void usage(const char* msg) {
+    vgaFillLineColor();
     vgaPutStr(msg);
     vgaPutChar('\n');
 }
@@ -91,9 +92,11 @@ static int cmdHelp(int argc, char** argv) {
     (void)argc;
     (void)argv;
 
+    vgaFillLineColor();
     vgaPutStr("Available commands:\n");
 
     for (int i = 0; commandList[i].name; i++) {
+        vgaFillLineColor();
         vgaPutStr("  ");
         vgaPutStr(commandList[i].name);
         vgaPutStr(" - ");
@@ -125,10 +128,15 @@ static int cmdDate(int argc, char** argv) {
     RtcTime t;
     rtcGetTime(&t);
 
+    vgaFillLineColor();
     putDecimal(t.year);
     vgaPutChar('/');
+
+    if (t.month < 10) vgaPutChar('0');
     putDecimal(t.month);
     vgaPutChar('/');
+
+    if (t.day < 10) vgaPutChar('0');
     putDecimal(t.day);
     vgaPutChar('\n');
 
@@ -142,10 +150,17 @@ static int cmdTime(int argc, char** argv) {
     RtcTime t;
     rtcGetTime(&t);
 
+    vgaFillLineColor();
+
+    if (t.hour < 10) vgaPutChar('0');
     putDecimal(t.hour);
     vgaPutChar(':');
+
+    if (t.minute < 10) vgaPutChar('0');
     putDecimal(t.minute);
     vgaPutChar(':');
+
+    if (t.second < 10) vgaPutChar('0');
     putDecimal(t.second);
     vgaPutChar('\n');
 
@@ -154,12 +169,14 @@ static int cmdTime(int argc, char** argv) {
 
 static int cmdLs(int argc, char** argv) {
     if (!fsVolume.valid) {
+        vgaFillLineColor();
         vgaPutStr("FAT32 not initialized\n");
         return 0;
     }
 
     char* buf = malloc(PATH_MAX * 4);
     if (!buf) {
+        vgaFillLineColor();
         vgaPutStr("Out of memory\n");
         return 0;
     }
@@ -168,12 +185,23 @@ static int cmdLs(int argc, char** argv) {
     makeFullPath(argc > 1 ? argv[1] : shellGetCwd(), fullPath);
 
     if (!fat32ListDir(&fsVolume, fullPath, buf, PATH_MAX * 4)) {
+        vgaFillLineColor();
         vgaPutStr("Failed to list directory\n");
         free(buf);
         return 0;
     }
 
-    vgaPutStr(buf);
+    // 逐行输出
+    char* line = buf;
+    while (*line) {
+        vgaFillLineColor();
+        while (*line && *line != '\n') {
+            vgaPutChar(*line++);
+        }
+        if (*line == '\n') line++;
+        vgaPutChar('\n');
+    }
+
     free(buf);
     return 0;
 }
@@ -189,21 +217,31 @@ static int cmdCat(int argc, char** argv) {
 
     FileHandle file;
     if (!fsOpen(&file, fullPath)) {
+        vgaFillLineColor();
         vgaPutStr("File not found\n");
         return 0;
     }
 
     char* buf = malloc(512);
     if (!buf) {
+        vgaFillLineColor();
         vgaPutStr("Out of memory\n");
         fsClose(&file);
         return 0;
     }
 
     int n;
+    bool lineStart = true;
     while ((n = fsRead(&file, buf, 512)) > 0) {
         for (int i = 0; i < n; i++) {
+            if (lineStart) {
+                vgaFillLineColor();
+                lineStart = false;
+            }
             vgaPutChar(buf[i]);
+            if (buf[i] == '\n') {
+                lineStart = true;
+            }
         }
     }
 
@@ -216,7 +254,6 @@ static int cmdCat(int argc, char** argv) {
 
     return 0;
 }
-
 static int cmdCd(int argc, char** argv) {
     if (argc < 2) {
         usage("Usage: cd <directory>");
@@ -228,6 +265,7 @@ static int cmdCd(int argc, char** argv) {
 
     uint32_t cluster;
     if (!fat32PathToCluster(&fsVolume, fullPath, &cluster)) {
+        vgaFillLineColor();
         vgaPutStr("Directory not found\n");
         return 0;
     }
@@ -239,6 +277,7 @@ static int cmdCd(int argc, char** argv) {
 static int cmdPwd(int argc, char** argv) {
     (void)argc;
     (void)argv;
+    vgaFillLineColor();
     vgaPutStr(shellGetCwd());
     vgaPutChar('\n');
     return 0;
@@ -268,8 +307,10 @@ static int cmdMk(int argc, char** argv) {
     makeFullPath(name, fullPath);
 
     if (fat32CreateEntry(&fsVolume, fullPath, isDirectory)) {
+        vgaFillLineColor();
         vgaPutStr(isDirectory ? "Directory created\n" : "File created\n");
     } else {
+        vgaFillLineColor();
         vgaPutStr("Create failed\n");
     }
 
@@ -321,8 +362,10 @@ static int cmdWr(int argc, char** argv) {
     makeFullPath(filename, fullPath);
 
     if (fat32WriteFile(&fsVolume, fullPath, cleanContent, append)) {
+        vgaFillLineColor();
         vgaPutStr("Written\n");
     } else {
+        vgaFillLineColor();
         vgaPutStr("Write failed\n");
     }
 
@@ -341,8 +384,10 @@ static int cmdCp(int argc, char** argv) {
     makeFullPath(argv[2], dstPath);
 
     if (fat32CopyFile(&fsVolume, srcPath, dstPath)) {
+        vgaFillLineColor();
         vgaPutStr("Copied\n");
     } else {
+        vgaFillLineColor();
         vgaPutStr("Copy failed\n");
     }
 
@@ -359,8 +404,10 @@ static int cmdRm(int argc, char** argv) {
     makeFullPath(argv[1], fullPath);
 
     if (fat32Remove(&fsVolume, fullPath)) {
+        vgaFillLineColor();
         vgaPutStr("Removed\n");
     } else {
+        vgaFillLineColor();
         vgaPutStr("Remove failed\n");
     }
     return 0;
@@ -376,8 +423,10 @@ static int cmdRen(int argc, char** argv) {
     makeFullPath(argv[1], fullPath);
 
     if (fat32Rename(&fsVolume, fullPath, argv[2])) {
+        vgaFillLineColor();
         vgaPutStr("Renamed\n");
     } else {
+        vgaFillLineColor();
         vgaPutStr("Rename failed\n");
     }
     return 0;
@@ -421,11 +470,13 @@ static int cmdFg(int argc, char** argv) {
 
     int color = parseColor(argv[1]);
     if (color < 0 || color > 15) {
+        vgaFillLineColor();
         vgaPutStr("Invalid color\n");
         return 0;
     }
 
     if (color == BG) {
+        vgaFillLineColor();
         vgaPutStr("FG cannot equal BG\n");
         return 0;
     }
@@ -443,11 +494,13 @@ static int cmdBg(int argc, char** argv) {
 
     int color = parseColor(argv[1]);
     if (color < 0 || color > 15) {
+        vgaFillLineColor();
         vgaPutStr("Invalid color\n");
         return 0;
     }
 
     if (color == FG) {
+        vgaFillLineColor();
         vgaPutStr("BG cannot equal FG\n");
         return 0;
     }
@@ -467,6 +520,7 @@ static int cmdHl(int argc, char** argv) {
 
     int color = parseColor(argv[1]);
     if (color < 0 || color > 15) {
+        vgaFillLineColor();
         vgaPutStr("Invalid color\n");
         return 0;
     }
@@ -483,6 +537,7 @@ static int cmdLl(int argc, char** argv) {
 
     int color = parseColor(argv[1]);
     if (color < 0 || color > 15) {
+        vgaFillLineColor();
         vgaPutStr("Invalid color\n");
         return 0;
     }
@@ -506,6 +561,7 @@ static int cmdShutdown(int argc, char** argv) {
 }
 
 static int cmdEcho(int argc, char** argv) {
+    vgaFillLineColor();
     for (int i = 1; i < argc; i++) {
         if (i > 1) vgaPutChar(' ');
         vgaPutStr(argv[i]);

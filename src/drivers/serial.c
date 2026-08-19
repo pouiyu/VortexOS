@@ -23,3 +23,19 @@ void serialPutStr(const char* str) {
         serialPutChar(*str++);
     }
 }
+
+void serialPutHex8(uint8_t value) {
+    const char* hex = "0123456789ABCDEF";
+    serialPutChar(hex[(value >> 4) & 0x0F]);
+    serialPutChar(hex[value & 0x0F]);
+}
+
+void serialPutHex16(uint16_t value) {
+    serialPutHex8((value >> 8) & 0xFF);
+    serialPutHex8(value & 0xFF);
+}
+
+void serialPutHex32(uint32_t value) {
+    serialPutHex16((value >> 16) & 0xFFFF);
+    serialPutHex16(value & 0xFFFF);
+}
