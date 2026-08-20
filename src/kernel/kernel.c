@@ -16,6 +16,7 @@
 #include "tss.h"
 #include "syscall.h"
 #include "user.h"
+#include "task.h"
 
 uint8_t FG = COLOR_WHITE;
 uint8_t BG = COLOR_BLACK;
@@ -443,6 +444,10 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     serialPutStr("[PAGING] Initialized\n");// 调试信息
     serialPutStr("[SERIAL] Initialized\n");// 调试信息
 
+    taskInit();
+    vgaPutStr("[TASK] Initialized\n");
+    serialPutStr("[TASK] Initialized\n");// 调试信息
+
     vgaInit();
     vgaPutStr("[VGA] Initialized\n");
     serialPutStr("[VGA] Initialized\n");// 调试信息
@@ -472,13 +477,10 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     //__asm__ volatile ("hlt");
 
-    serialPutStr("userTest addr: 0x");
-    serialPutHex32((uint32_t)userTest);
-    serialPutStr("\n");
-
     vgaDisableCursor();
     vgaSetColorByte(theme);
     vgaClear();
+
     drawMainMenu();
 
     __asm__ volatile ("sti");

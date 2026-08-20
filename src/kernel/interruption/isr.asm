@@ -170,15 +170,20 @@ syscall_entry:
     jmp .done
 
 .do_read:
-    ; 等待键盘
+    ; 等待键盘有输入
 .wait_key:
     call keyboardHasChar
     test eax, eax
     jz .wait_key
 
+    ; 读字符
     call keyboardGetChar
-    ; 存到 buf（ebx）
+
+    ; 存到 buf（ebx 指向缓冲区）
     mov [ebx], al
+
+    ; 返回值放 eax
+    movzx eax, al
     jmp .done
 
 .do_exit:
