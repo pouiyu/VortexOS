@@ -3,7 +3,7 @@
 #include "fat32.h"
 #include "path.h"
 #include <ata.h>
-#include <string.h>
+#include <string/string.h>
 
 extern fat32Volume fsVolume;
 

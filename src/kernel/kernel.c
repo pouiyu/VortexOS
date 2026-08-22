@@ -17,6 +17,7 @@
 #include "syscall.h"
 #include "user.h"
 #include "task.h"
+#include <pit.h>
 
 uint8_t FG = COLOR_WHITE;
 uint8_t BG = COLOR_BLACK;
@@ -415,6 +416,18 @@ static void handleSelect(void) {
     }
 }
 
+void userTask1(void) {
+    for (;;) {
+        sysWrite("User Task 1\n");
+    }
+}
+
+void userTask2(void) {
+    for (;;) {
+        sysWrite("User Task 2\n");
+    }
+}
+
 void kernel_main(unsigned int magic, unsigned int addr) {
     (void)magic;
     (void)addr;
@@ -481,10 +494,17 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     vgaSetColorByte(theme);
     vgaClear();
 
-    drawMainMenu();
-
     __asm__ volatile ("sti");
     serialPutStr("Enable Interrupt\n");
+
+    taskCreateUser(userTask1, 4096);
+    taskCreateUser(userTask2, 4096);
+    pitInit(10);
+    taskYield();  // 开始任务1
+
+    __asm__ volatile ("hlt");
+
+    drawMainMenu();
 
     for (;;) {
         if (keyboardHasChar()) {

@@ -1,6 +1,6 @@
-#include <string.h>
+#include <string/string.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdlib/stdlib.h>
 
 size_t strlen(const char* s) {
     size_t len = 0;

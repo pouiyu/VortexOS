@@ -1,6 +1,6 @@
 #include "fat32.h"
 #include <ata.h>
-#include <string.h>
+#include <string/string.h>
 #include "path.h"
 #include "file.h"
 

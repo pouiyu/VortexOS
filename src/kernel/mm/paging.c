@@ -33,14 +33,7 @@ void pagingInit(void) {
     __asm__ volatile ("mov %0, %%cr0" : : "r"(cr0));
 
     uint32_t* pde = (uint32_t*)0x00400000;  // 页目录
-    serialPutStr("PDE[0]=");
-    serialPutHex32(pde[0]);
-    serialPutStr("\n");
-
     uint32_t* pte = (uint32_t*)(pde[0] & 0xFFFFF000);
-    serialPutStr("PTE[0x300]=");
-    serialPutHex32(pte[0x300]);
-    serialPutStr("\n");
 }
 
 void pagingMapPage(uint32_t virtualAddr, uint32_t physAddr, uint32_t flags) {

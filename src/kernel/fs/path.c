@@ -1,5 +1,5 @@
 #include "path.h"
-#include <string.h>
+#include <string/string.h>
 
 void pathSplit(const char* fullPath, char* dir, char* name) {
     int len = strlen(fullPath);

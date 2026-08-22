@@ -3,27 +3,29 @@
 
 #include <stdint.h>
 
+#define MAX_TASKS 16
+
 typedef struct {
-    uint32_t eax, ebx, ecx, edx;
-    uint32_t esi, edi, ebp, esp;
-    uint32_t eip;
-    uint32_t eflags;
+    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
 } TaskContext;
 
 typedef struct {
     TaskContext ctx;
-    uint32_t* stack;      // 内核栈
+    uint32_t* stack;
+    uint32_t* userStack;
     uint32_t stackSize;
-    int state;            // 0=就绪, 1=运行, 2=阻塞
+    int state;
     int id;
+    int isUser;
 } Task;
-
-void taskInit(void);
-Task* taskCreate(void (*entry)(void), uint32_t stackSize);
-void taskYield(void);
-void taskSchedule(void);
 
 extern Task* currentTask;
 extern Task* nextTask;
+
+void taskInit(void);
+Task* taskCreate(void (*entry)(void), uint32_t stackSize);
+Task* taskCreateUser(void (*entry)(void), uint32_t stackSize);
+void taskYield(void);
+void taskSchedule(void);
 
 #endif

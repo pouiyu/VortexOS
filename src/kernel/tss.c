@@ -45,3 +45,10 @@ void tssInit(uint32_t kernelStack) {
 
     __asm__ volatile ("mov $0x2B, %%ax; ltr %%ax" : : : "ax");
 }
+
+uint32_t tss_esp0;
+
+void tssSetEsp0(uint32_t esp0) {
+    tss_esp0 = esp0;   // 全局变量（可选，用于调试）
+    tss.esp0 = esp0;   // 关键！必须更新 TSS 结构体
+}

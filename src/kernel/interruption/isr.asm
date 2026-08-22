@@ -39,7 +39,7 @@ extern keyboardIRQHandler
 extern vgaPutStr
 extern keyboardHasChar
 extern keyboardGetChar
-
+extern serialPutStr
 
 %macro ISR_NOERR 1
 global isr%1
@@ -56,11 +56,9 @@ isr%1:
     mov es, ax
     mov fs, ax
     mov gs, ax
-
     push esp
     call exc%1
     add esp, 4
-
     pop gs
     pop fs
     pop es
@@ -84,11 +82,9 @@ isr%1:
     mov es, ax
     mov fs, ax
     mov gs, ax
-
     push esp
     call exc%1
     add esp, 4
-
     pop gs
     pop fs
     pop es
@@ -131,35 +127,62 @@ ISR_NOERR 29
 ISR_ERR   30
 ISR_NOERR 31
 
-; 键盘中断处理入口
-global irq1_handler
+global irq0_handler
+extern currentTask
+extern nextTask
+extern taskYield
 
-irq1_handler:
+irq0_handler:
     pusha
-    call keyboardIRQHandler
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    mov al, 0x20
+    out 0x20, al
+
+    call taskYield
+
+    mov eax, [currentTask]
+    mov [eax + 12], esp
+
+    mov eax, [nextTask]
+    mov [currentTask], eax
+    mov esp, [eax + 12]
+
+    mov ax, 0x23
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
     popa
     iret
 
-; 加载 IDT
-global idtLoad
-
-idtLoad:
-    mov eax, [esp + 4]
-    lidt [eax]
-    ret
-
-
 global syscall_entry
-extern syscallHandler
 
 syscall_entry:
     pusha
+    push ds
+    push es
+    push fs
+    push gs
 
-    cmp eax, 1          ; SYS_WRITE
-    je .do_write
-    cmp eax, 2          ; SYS_READ
+    mov ebp, eax        ; 保存系统调用号
+
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    cmp ebp, 1
     je .do_read
-    cmp eax, 3          ; SYS_EXIT
+    cmp ebp, 2
+    je .do_write
+    cmp ebp, 3
     je .do_exit
     jmp .done
 
@@ -170,19 +193,11 @@ syscall_entry:
     jmp .done
 
 .do_read:
-    ; 等待键盘有输入
-.wait_key:
     call keyboardHasChar
     test eax, eax
-    jz .wait_key
-
-    ; 读字符
+    jz .do_read
     call keyboardGetChar
-
-    ; 存到 buf（ebx 指向缓冲区）
     mov [ebx], al
-
-    ; 返回值放 eax
     movzx eax, al
     jmp .done
 
@@ -192,5 +207,28 @@ syscall_entry:
     jmp .do_exit
 
 .done:
+    pop gs
+    pop fs
+    pop es
+    pop ds
     popa
     iret
+
+global irq1_handler
+
+irq1_handler:
+    pusha
+    call keyboardIRQHandler
+    mov al, 0x20
+    out 0x20, al
+    popa
+    iret
+
+global idtLoad
+
+idtLoad:
+    mov eax, [esp + 4]
+    lidt [eax]
+    ret
+
+msg_w_test: db "W", 0
