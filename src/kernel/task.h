@@ -17,15 +17,20 @@ typedef struct {
     int state;
     int id;
     int isUser;
+    int priority;
+    int ticksRemaining;
+    int timeSlice;
+    uint32_t pageDir;   // <-- 这里必须有
 } Task;
 
 extern Task* currentTask;
 extern Task* nextTask;
 
 void taskInit(void);
-Task* taskCreate(void (*entry)(void), uint32_t stackSize);
-Task* taskCreateUser(void (*entry)(void), uint32_t stackSize);
+Task* taskCreate(void (*entry)(void), uint32_t stackSize, int priority);
+Task* taskCreateUser(void (*entry)(void), uint32_t stackSize, int priority);
 void taskYield(void);
 void taskSchedule(void);
+void taskTick(void);
 
 #endif

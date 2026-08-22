@@ -40,6 +40,7 @@ extern vgaPutStr
 extern keyboardHasChar
 extern keyboardGetChar
 extern serialPutStr
+extern taskTick
 
 %macro ISR_NOERR 1
 global isr%1
@@ -143,20 +144,36 @@ irq0_handler:
     mov al, 0x20
     out 0x20, al
 
-    call taskYield
+    call taskTick          ; 使用 taskTick 而不是 taskYield
 
+    ; 保存当前任务 esp
     mov eax, [currentTask]
     mov [eax + 12], esp
 
+    ; 加载下一个任务
     mov eax, [nextTask]
     mov [currentTask], eax
-    mov esp, [eax + 12]
 
+    ; 根据任务类型设置段寄存器
+    mov ebx, [eax + 52]    ; isUser 偏移 = 52
+    cmp ebx, 1
+    je .user_seg
+    mov ax, 0x10
+    jmp .set_seg
+.user_seg:
     mov ax, 0x23
+.set_seg:
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
+
+    ; 切换页目录（如果任务有独立页目录）
+    mov ebx, [eax + 68]    ; pageDir 偏移 = 68
+    cmp ebx, 0
+    je .skip_cr3
+    mov cr3, ebx
+.skip_cr3:
 
     popa
     iret

@@ -5,7 +5,7 @@
 #define PAGE_DIR_INDEX(addr)   (((uint32_t)(addr) >> 22) & 0x3FF)
 #define PAGE_TABLE_INDEX(addr) (((uint32_t)(addr) >> 12) & 0x3FF)
 
-static uint32_t* pageDir = NULL;
+uint32_t* pageDir = NULL;
 
 void pagingInit(void) {
     pageDir = (uint32_t*)pmmAllocPage();
@@ -52,6 +52,17 @@ void pagingMapPage(uint32_t virtualAddr, uint32_t physAddr, uint32_t flags) {
     }
 
     pageTable[tableIndex] = (physAddr & 0xFFFFF000) | PAGE_PRESENT | flags;
+}
+
+uint32_t pagingCreateUserDirectory(void) {
+    uint32_t* new_dir = (uint32_t*)pmmAllocPage();
+    if (!new_dir) return 0;
+    memset(new_dir, 0, PAGE_SIZE);
+
+    extern uint32_t* pageDir;   // 确保 pageDir 在 paging.c 中全局可见
+    memcpy(new_dir, pageDir, PAGE_SIZE);
+
+    return (uint32_t)new_dir;
 }
 
 void pagingUnmapPage(uint32_t virtualAddr) {

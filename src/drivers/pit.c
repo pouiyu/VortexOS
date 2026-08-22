@@ -1,6 +1,7 @@
 #include "pit.h"
 #include <io.h>
 #include "task.h"
+#include <stdint.h>
 
 #define PIT_CHANNEL0 0x40
 #define PIT_COMMAND  0x43
@@ -14,5 +15,6 @@ void pitInit(uint32_t frequency) {
 }
 
 void pitHandler(void) {
-    taskYield();
+    extern void taskTick(void);
+    taskTick();
 }

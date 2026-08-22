@@ -497,8 +497,8 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     __asm__ volatile ("sti");
     serialPutStr("Enable Interrupt\n");
 
-    taskCreateUser(userTask1, 4096);
-    taskCreateUser(userTask2, 4096);
+    taskCreateUser(userTask1, 4096, 3);  // 高优先级
+    taskCreateUser(userTask2, 4096, 1);  // 低优先级
     pitInit(10);
     taskYield();  // 开始任务1
 

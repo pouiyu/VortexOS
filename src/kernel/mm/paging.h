@@ -10,5 +10,8 @@
 void pagingInit(void);
 void pagingMapPage(uint32_t virtualAddr, uint32_t physAddr, uint32_t flags);
 void pagingUnmapPage(uint32_t virtualAddr);
+uint32_t pagingCreateUserDirectory(void);
+
+extern uint32_t* pageDir;
 
 #endif
