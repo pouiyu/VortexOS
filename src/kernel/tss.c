@@ -43,7 +43,7 @@ void tssInit(uint32_t kernelStack) {
     entry[6] = ((limit >> 16) & 0x0F);
     entry[7] = (base >> 24) & 0xFF;
 
-    __asm__ volatile ("mov $0x2B, %%ax; ltr %%ax" : : : "ax");
+    __asm__ volatile ("mov $0x28, %%ax; ltr %%ax" : : : "ax");
 }
 
 uint32_t tss_esp0;

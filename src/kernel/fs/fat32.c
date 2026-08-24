@@ -790,14 +790,28 @@ bool fat32WriteFile(fat32Volume* vol, const char* path,
         // 更新 firstCluster
         // 简化：直接写回目录项
         uint32_t updateCluster = dirCluster;
-        while (cluster < FAT32_CLUSTER_END) {
+        while (updateCluster < FAT32_CLUSTER_END) {
             uint32_t sector = clusterToSector(vol, updateCluster);
             for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
                 ataReadSector(sector + s, sectorBuf);
                 fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
                 for (int i = 0; i < 16; i++) {
                     fat32DirEntry* e = &entries[i];
-                    if (strcasecmp((char*)e->name, name) == 0) {
+                    if (e->name[0] == 0x00) return false;
+                    if (e->name[0] == 0xE5 || e->attributes == 0x0F) continue;
+
+                    char entryName[NAME_MAX + 1];
+                    int n = 0;
+                    for (int j = 0; j < 8 && e->name[j] != ' '; j++)
+                        entryName[n++] = e->name[j];
+                    if (e->name[8] != ' ') {
+                        entryName[n++] = '.';
+                        for (int j = 8; j < 11 && e->name[j] != ' '; j++)
+                            entryName[n++] = e->name[j];
+                    }
+                    entryName[n] = '\0';
+
+                    if (strcasecmp(entryName, name) == 0) {
                         e->firstClusterHigh = (uint16_t)(firstCluster >> 16);
                         e->firstClusterLow = (uint16_t)(firstCluster & 0xFFFF);
                         e->fileSize = contentLen;

@@ -140,22 +140,6 @@ void updateTheme(void) {
     vgaSetColorByte(theme);
 }
 
-static const char* const* getCurrentOptions(void) {
-    switch (currentMenu) {
-        case MENU_MAIN:               return mainOptions;
-        case MENU_SETTINGS:           return settingsOptions;
-        case MENU_SETTINGS_ABOUT:     return aboutOptions;
-        case MENU_SETTINGS_THEME:     return themeOptions;
-        case MENU_SETTINGS_THEME_HL:
-        case MENU_SETTINGS_THEME_LL:
-        case MENU_SETTINGS_THEME_FG:
-        case MENU_SETTINGS_THEME_BG:  return ColorOptions;
-        case MENU_CONFIRM_REBOOT:
-        case MENU_CONFIRM_SHUTDOWN:   return confirmOptions;
-        default:                      return NULL;
-    }
-}
-
 static int getCurrentSize(void) {
     switch (currentMenu) {
         case MENU_MAIN:               return MAIN_SIZE;
@@ -416,18 +400,6 @@ static void handleSelect(void) {
     }
 }
 
-void userTask1(void) {
-    for (;;) {
-        sysWrite("User Task 1\n");
-    }
-}
-
-void userTask2(void) {
-    for (;;) {
-        sysWrite("User Task 2\n");
-    }
-}
-
 void kernel_main(unsigned int magic, unsigned int addr) {
     (void)magic;
     (void)addr;
@@ -496,13 +468,6 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     __asm__ volatile ("sti");
     serialPutStr("Enable Interrupt\n");
-
-    taskCreateUser(userTask1, 4096, 3);  // 高优先级
-    taskCreateUser(userTask2, 4096, 1);  // 低优先级
-    pitInit(10);
-    taskYield();  // 开始任务1
-
-    __asm__ volatile ("hlt");
 
     drawMainMenu();
 

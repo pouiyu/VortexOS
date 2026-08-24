@@ -31,9 +31,6 @@ void pagingInit(void) {
     __asm__ volatile ("mov %%cr0, %0" : "=r"(cr0));
     cr0 |= 0x80000000;
     __asm__ volatile ("mov %0, %%cr0" : : "r"(cr0));
-
-    uint32_t* pde = (uint32_t*)0x00400000;  // 页目录
-    uint32_t* pte = (uint32_t*)(pde[0] & 0xFFFFF000);
 }
 
 void pagingMapPage(uint32_t virtualAddr, uint32_t physAddr, uint32_t flags) {

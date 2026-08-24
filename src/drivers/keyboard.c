@@ -24,6 +24,7 @@ static const char scancodeToAsciiShift[128] = {
 
 static bool shiftPressed = false;
 static bool capsLockOn = false;
+static bool ctrlPressed = false;
 
 // 处理扩展扫描码（方向键、功能键等）
 static char handleExtendedScancode(unsigned char scancode) {
@@ -63,8 +64,15 @@ void keyboardIRQHandler(void) {
 
     // 扩展键
     if (extendedCode) {
-        if (!releaseCode) {
+        if (scancode == 0x1D) {           // 右 Ctrl (E0 1D)
+            ctrlPressed = !releaseCode;
+        } else if (!releaseCode) {
             keyboardScancode = handleExtendedScancode(scancode);
+            // Ctrl+方向键 → 滚动屏幕
+            if (ctrlPressed && keyboardScancode == 0x80)
+                keyboardScancode = (char)KEY_SCROLL_UP;
+            else if (ctrlPressed && keyboardScancode == 0x81)
+                keyboardScancode = (char)KEY_SCROLL_DOWN;
         }
         extendedCode = false;
         releaseCode = false;
@@ -79,14 +87,20 @@ void keyboardIRQHandler(void) {
             shiftPressed = true;
         } else if (scancode == 0x3A) {
             capsLockOn = !capsLockOn;   // Caps Lock 按下时切换
+        } else if (scancode == 0x1D) {
+            ctrlPressed = true;         // 左 Ctrl
+        } else {
+            keyboardScancode = scancode;  // 修饰键不写入检索位，只改状态
         }
-        keyboardScancode = scancode;
     } else {
         // 释放
         if (scancode == 0xAA || scancode == 0xB6) {
             shiftPressed = false;
+        } else if (scancode == 0x9D) {
+            ctrlPressed = false;        // 左 Ctrl 释放
+        } else {
+            keyboardScancode = 0;       // 修饰键释放不清空待处理按键
         }
-        keyboardScancode = 0;
     }
 
     outb(0x20, 0x20);
@@ -96,6 +110,7 @@ void keyboardInit(void) {
     keyboardScancode = 0;
     shiftPressed = false;
     capsLockOn = false;
+    ctrlPressed = false;
     extendedCode = false;
     releaseCode = false;
 

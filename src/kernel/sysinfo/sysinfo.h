@@ -3,5 +3,6 @@
 
 void showSystemInfo(void);
 void showDeviceInfo(void);
+void showSystemLogo(void);
 
 #endif

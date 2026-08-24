@@ -148,14 +148,22 @@ irq0_handler:
 
     ; 保存当前任务 esp
     mov eax, [currentTask]
+    test eax, eax
+    jz .skip_save
     mov [eax + 12], esp
+.skip_save:
 
     ; 加载下一个任务
-    mov eax, [nextTask]
-    mov [currentTask], eax
+    mov esi, [nextTask]
+    test esi, esi
+    jz .skip_switch
+    mov [currentTask], esi
+
+    ; 切换到下一个任务的内核栈
+    mov esp, [esi + 12]
 
     ; 根据任务类型设置段寄存器
-    mov ebx, [eax + 52]    ; isUser 偏移 = 52
+    mov ebx, [esi + 52]    ; isUser 偏移 = 52
     cmp ebx, 1
     je .user_seg
     mov ax, 0x10
@@ -169,12 +177,13 @@ irq0_handler:
     mov gs, ax
 
     ; 切换页目录（如果任务有独立页目录）
-    mov ebx, [eax + 68]    ; pageDir 偏移 = 68
+    mov ebx, [esi + 68]    ; pageDir 偏移 = 68
     cmp ebx, 0
     je .skip_cr3
     mov cr3, ebx
 .skip_cr3:
 
+.skip_switch:
     popa
     iret
 
@@ -210,9 +219,13 @@ syscall_entry:
     jmp .done
 
 .do_read:
+    sti
     call keyboardHasChar
     test eax, eax
-    jz .do_read
+    jnz .read_ready
+    hlt
+    jmp .do_read
+.read_ready:
     call keyboardGetChar
     mov [ebx], al
     movzx eax, al

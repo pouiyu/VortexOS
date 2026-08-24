@@ -10,6 +10,7 @@
 #include "shell.h"
 #include <rtc.h>
 #include <kernel.h>
+#include "vex/vex.h"
 
 static int cmdHelp(int argc, char** argv);
 static int cmdClear(int argc, char** argv);
@@ -29,6 +30,7 @@ static int cmdFg(int argc, char** argv);
 static int cmdBg(int argc, char** argv);
 static int cmdHl(int argc, char** argv);
 static int cmdLl(int argc, char** argv);
+static int cmdVex(int argc, char** argv);
 static int cmdReboot(int argc, char** argv);
 static int cmdShutdown(int argc, char** argv);
 static int cmdEcho(int argc, char** argv);
@@ -53,6 +55,7 @@ static const shellCommand commandList[] = {
     {"bg",       "Set background color",           cmdBg},
     {"hl",       "Set highlight color",            cmdHl},
     {"ll",       "Set lowlight color",             cmdLl},
+    {"vex",      "Run VEX executable",             cmdVex},
     {"reboot",   "Reboot the system",              cmdReboot},
     {"shutdown", "Shutdown the system",            cmdShutdown},
     {"echo",     "Print a line of text",           cmdEcho},
@@ -545,6 +548,24 @@ static int cmdLl(int argc, char** argv) {
     LL = VGA_COLOR(color, BG);
     return 0;
 }
+
+static int cmdVex(int argc, char** argv) {
+    if (argc < 2) {
+        usage("Usage: vex <filename>");
+        return 0;
+    }
+
+    char fullPath[PATH_MAX];
+    makeFullPath(argv[1], fullPath);
+
+    if (!vexLoadAndRun(fullPath)) {
+        vgaFillLineColor();
+        vgaPutStr("VEX: failed to load\n");
+    }
+
+    return 0;
+}
+
 
 static int cmdReboot(int argc, char** argv) {
     (void)argc;

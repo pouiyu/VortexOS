@@ -19,7 +19,6 @@ static int  inputLen = 0;
 static int  cursorPos = 0;
 static char currentDir[PATH_MAX] = "/";
 
-static const char* prompt = OS_NAME "> ";
 static int promptLen = 0;  // 提示符长度，init 时计算
 
 static int shellRow = 0;  // 提示符所在行
@@ -81,8 +80,6 @@ static void putPrompt(void) {
 static int shellExecute(const char* cmd) {
     if (cmd[0] == '\0') return 0;
 
-    uint8_t row, col;
-
     char* argv[16];
     int argc = 0;
     char buf[MAX_INPUT];
@@ -136,7 +133,15 @@ void runShell(void) {
         if (keyboardHasChar()) {
             unsigned char c = keyboardGetChar();
 
-            if (c == '\r' || c == '\n') {
+            // Ctrl+方向键是滚动键；其他按键先恢复实时视图再处理
+            if (c != KEY_SCROLL_UP && c != KEY_SCROLL_DOWN && vgaScrollViewActive())
+                vgaScrollViewReset();
+
+            if (c == KEY_SCROLL_UP) {
+                vgaScrollView(1);        // 向上看更早输出
+            } else if (c == KEY_SCROLL_DOWN) {
+                vgaScrollView(-1);       // 向下回到实时
+            } else if (c == '\r' || c == '\n') {
                 vgaPutChar('\n');
                 inputBuf[inputLen] = '\0';
 

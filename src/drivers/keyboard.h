@@ -117,6 +117,10 @@ typedef enum {
     KEY_POWER = 164,
     KEY_WAKE  = 165,
 
+    // 组合键：Ctrl+方向键 滚动屏幕
+    KEY_SCROLL_UP   = 186,
+    KEY_SCROLL_DOWN = 187,
+
     KEY_PREVTRACK  = 166,
     KEY_NEXTTRACK  = 167,
     KEY_MUTE       = 168,

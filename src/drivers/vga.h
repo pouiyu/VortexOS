@@ -90,4 +90,9 @@ void vgaPutColor(void);
 void vgaFillLineColor(void);
 void vgaPutColorRange(uint8_t row, uint8_t startCol, uint8_t endCol);
 
+/* 屏幕滚动回看：Ctrl+方向键 */
+void vgaScrollView(int delta);       /* +1 向上看更早内容，-1 向下回到实时 */
+void vgaScrollViewReset(void);       /* 强制恢复实时视图 */
+int  vgaScrollViewActive(void);      /* 当前是否处于滚动视图 */
+
 #endif

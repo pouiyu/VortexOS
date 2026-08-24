@@ -1,11 +1,94 @@
 #include <vga.h>
 #include "stdio.h"
 #include <io.h>
+#include <string/string.h>
 
 static uint16_t* videoMemory = (uint16_t*) VGA_MEMORY;
 static uint8_t cursorRow = 0;
 static uint8_t cursorCol = 0;
 static uint8_t currentColor = 0;
+static uint8_t cursorStyleStart = 0;   // 最近设置的光标样式，供恢复
+static uint8_t cursorStyleEnd = 15;
+
+/* ===== 屏幕滚动回看 =====
+ * scrollCount  : 本屏会话内已「完成」的行数(光标离开该行即视为完成)
+ * scrollRows   : 已完成行的环状缓冲，保存完整 80 列单元格(字符+颜色)
+ * liveScreen   : 进入滚动态时的实时画面快照，用于恢复实时视图
+ * scrollViewOffset/LiveTop : 滚动视图顶行相对实时顶行的偏移 */
+#define SCROLL_ROWS 512
+static uint16_t scrollRows[SCROLL_ROWS][VGA_WIDTH];
+static uint16_t liveScreen[VGA_HEIGHT][VGA_WIDTH];
+static int scrollCount = 0;
+static int scrollViewOffset = 0;   // 0 = 实时视图
+static int scrollLiveTop = 0;
+
+// 把指定行写入回看缓冲(光标即将离开该行时调用)
+static void captureRow(uint8_t row) {
+    for (int c = 0; c < VGA_WIDTH; c++)
+        scrollRows[scrollCount % SCROLL_ROWS][c] = videoMemory[row * VGA_WIDTH + c];
+    scrollCount++;
+}
+
+// 渲染滚动视图(顶行 = scrollLiveTop - scrollViewOffset)
+static void renderScrolledView(void) {
+    int top = scrollLiveTop - scrollViewOffset;
+    for (int r = 0; r < VGA_HEIGHT; r++) {
+        int line = top + r;
+        for (int c = 0; c < VGA_WIDTH; c++) {
+            size_t idx = r * VGA_WIDTH + c;
+            if (line >= 0 && line < scrollCount)
+                videoMemory[idx] = scrollRows[line % SCROLL_ROWS][c];
+            else
+                videoMemory[idx] = vgaEntry(' ', currentColor);
+        }
+    }
+}
+
+// 返回占用显存的行快照并恢复实时视图
+static void restoreLiveView(void) {
+    memcpy(videoMemory, liveScreen, VGA_HEIGHT * VGA_WIDTH * sizeof(uint16_t));
+    vgaSetCursorPos(cursorRow, cursorCol);
+}
+
+void vgaScrollView(int delta) {
+    if (delta == 0) return;
+
+    if (scrollViewOffset == 0) {
+        // 实时态：向下没有可滚方向；需有回看内容才能向上滚
+        if (delta < 0) return;
+        int top = scrollCount - (int)cursorRow;
+        if (top < 0) top = 0;
+        if (top < 1) return;              // 没有可回看的历史行
+        scrollLiveTop = top;
+        // 进入滚动态：保存实时快照，并记录实时顶行
+        memcpy(liveScreen, videoMemory, VGA_HEIGHT * VGA_WIDTH * sizeof(uint16_t));
+        vgaDisableCursor();
+        scrollViewOffset = 1;
+        renderScrolledView();
+        return;
+    }
+
+    int newOff = scrollViewOffset + delta;
+    if (newOff < 1) {
+        // 回到实时视图
+        vgaScrollViewReset();
+        return;
+    }
+    if (newOff > scrollLiveTop) newOff = scrollLiveTop;
+    scrollViewOffset = newOff;
+    renderScrolledView();
+}
+
+void vgaScrollViewReset(void) {
+    if (scrollViewOffset == 0) return;
+    scrollViewOffset = 0;
+    restoreLiveView();
+    vgaEnableCursor();
+}
+
+int vgaScrollViewActive(void) {
+    return scrollViewOffset != 0;
+}
 
 void vgaInit(void) {
     currentColor = vgaEntryColor(COLOR_LIGHT_GREY, COLOR_BLACK);
@@ -36,6 +119,8 @@ void vgaGetCursorPos(uint8_t* row, uint8_t* col) {
 }
 
 void vgaSetCursorStyle(uint8_t start, uint8_t end) {
+    cursorStyleStart = start;
+    cursorStyleEnd = end;
     outb(VGA_CTRL_REG, VGA_CURSOR_START);
     outb(VGA_DATA_REG, (inb(VGA_DATA_REG) & 0xC0) | (start & 0x1F));
     outb(VGA_CTRL_REG, VGA_CURSOR_END);
@@ -48,11 +133,9 @@ void vgaDisableCursor(void) {
 }
 
 void vgaEnableCursor(void) {
-    outb(VGA_CTRL_REG, VGA_CURSOR_START);
-    uint8_t start = inb(VGA_DATA_REG) & 0x1F;
-    outb(VGA_CTRL_REG, VGA_CURSOR_END);
-    uint8_t end = inb(VGA_DATA_REG) & 0x1F;
-    vgaSetCursorStyle(start, end);
+    // 禁用(0x20)会覆写起始扫描线寄存器，
+    // 因此在启用时恢复上次设置的光标样式，避免样式被改动
+    vgaSetCursorStyle(cursorStyleStart, cursorStyleEnd);
 }
 
 void vgaPutColor(void) {
@@ -63,13 +146,14 @@ void vgaPutColor(void) {
 }
 
 void vgaFillLineColor(void) {
+    // 直接写显存填充本行，不移动光标，
+    // 避免最后一列写空格触发换行/滚动造成整行空行(间隙)
     uint8_t row, col;
     vgaGetCursorPos(&row, &col);
 
+    size_t index = (size_t)row * VGA_WIDTH + col;
     for (int i = col; i < VGA_WIDTH; i++)
-        vgaPutChar(' ');
-
-    vgaSetCursorPos(row, col);
+        videoMemory[index++] = vgaEntry(' ', currentColor);
 }
 
 void vgaClear(void) {
@@ -79,6 +163,8 @@ void vgaClear(void) {
             videoMemory[index] = vgaEntry(' ', currentColor);
         }
     }
+    scrollCount = 0;
+    scrollViewOffset = 0;
     cursorRow = 0;
     cursorCol = 0;
     vgaSetCursorPos(0, 0);
@@ -126,6 +212,7 @@ void vgaPutChar(char c) {
 
 void vgaPutCharColor(char c, uint8_t color) {
     if (c == '\n') {
+        captureRow(cursorRow);
         cursorCol = 0;
         cursorRow++;
         if (cursorRow >= VGA_HEIGHT) {
@@ -164,6 +251,7 @@ void vgaPutCharColor(char c, uint8_t color) {
 
     cursorCol++;
     if (cursorCol >= VGA_WIDTH) {
+        captureRow(cursorRow);
         cursorCol = 0;
         cursorRow++;
         if (cursorRow >= VGA_HEIGHT) {
