@@ -10,6 +10,8 @@ extern uint8_t FG;
 extern uint8_t BG;
 extern uint8_t HL;
 extern uint8_t LL;
+extern uint8_t cursorTop;
+extern uint8_t cursorBottom;
 extern unsigned int colorCount;
 
 void vgaSetColorByte(uint8_t color);

@@ -158,4 +158,7 @@ bool keyboardHasChar(void);
 void keyboardSetHandler(void (*handler)(KeyEvent*));
 void keyboardSetScanCodeSet(uint8_t set);
 
+/* 供 USB HID 层注入 PS/2 扫描码（含 E0/F0 前缀状态机） */
+void keyboardProcessScancode(unsigned char scancode);
+
 #endif

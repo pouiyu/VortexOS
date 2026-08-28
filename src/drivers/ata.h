@@ -19,6 +19,9 @@
 #define ATA_SR_BSY  0x80
 #define ATA_SR_DRQ  0x08
 
+/* ATA 忙等超时上限：无磁盘/故障时避免无限循环 */
+#define ATA_TIMEOUT_TRIES 200000
+
 void ataInit(void);
 int  ataReadSector(uint32_t lba, uint8_t* buf);
 int  ataWriteSector(uint32_t lba, const uint8_t* buf);

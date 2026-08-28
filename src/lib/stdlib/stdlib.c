@@ -12,13 +12,17 @@ typedef struct Block {
 static Block* heapStart = NULL;
 static size_t usedMemory = 0;
 
-// 从 PMM 分配新页给堆
-static Block* heapGrow(void) {
-    void* page = pmmAllocPage();
+// 从 PMM 分配新页给堆；按所需大小一次申请若干连续页，
+// 使 malloc 也能满足超过单页(4084 字节)的请求。
+static Block* heapGrow(size_t wantSize) {
+    uint32_t pages = (uint32_t)((wantSize + sizeof(Block) + PAGE_SIZE - 1) / PAGE_SIZE);
+    if (pages < 1) pages = 1;
+
+    void* page = pmmAllocPages(pages);
     if (!page) return NULL;
 
     Block* block = (Block*)page;
-    block->size = PAGE_SIZE - sizeof(Block);
+    block->size = (size_t)pages * PAGE_SIZE - sizeof(Block);
     block->free = 1;
     block->next = NULL;
 
@@ -62,8 +66,8 @@ void* malloc(size_t size) {
         current = current->next;
     }
 
-    // 没有合适的块，扩展堆
-    Block* newBlock = heapGrow();
+    // 没有合适的块，扩展堆（按 size 申请连续页）
+    Block* newBlock = heapGrow(size);
     if (!newBlock) return NULL;
 
     return malloc(size);  // 重新分配

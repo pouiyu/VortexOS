@@ -1,7 +1,7 @@
 #include "shell.h"
 #include "commands.h"
 #include <sysinfo/config.h>
-#include <vga.h>
+#include <stdio/vga.h>
 #include <keyboard.h>
 #include <string/string.h>
 #include <kernel.h>
@@ -113,7 +113,7 @@ static int shellExecute(const char* cmd) {
 void runShell(void) {
     vgaClear();
     vgaEnableCursor();
-    vgaSetCursorStyle(14,15);
+    vgaSetCursorStyle(cursorTop, cursorBottom);
     vgaPutStrColor(" "OS_NAME"OS\n", HL);
     vgaPutStrColor("Type \"help\" for commands, \"exit\" to return.\n\n", LL);
 

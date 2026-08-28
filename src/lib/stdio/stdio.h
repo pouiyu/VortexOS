@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <io.h>
-#include <vga.h>
+#include <stdio/vga.h>
 #include <sys/cdefs.h>
 
 #ifndef NULL

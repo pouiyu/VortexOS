@@ -43,6 +43,33 @@ void* pmmAllocPage(void) {
     return NULL;
 }
 
+/* 从第一个连续空闲段里分配 count 个连续页。分配器需要连续内存(如堆大块)时使用。 */
+void* pmmAllocPages(uint32_t count) {
+    if (count == 0 || count > totalPages) return NULL;
+
+    for (uint32_t page = 0; page + count <= totalPages; page++) {
+        uint32_t o = BITMAP_OFFSET(page);
+        if (bitmap[BITMAP_INDEX(page)] & (1 << o)) continue;  /* 起始页被占用 */
+
+        /* 检测后续 count-1 页是否连续空闲 */
+        uint32_t n = page, run = 1;
+        while (run < count && page + run < totalPages) {
+            uint32_t so = BITMAP_OFFSET(page + run);
+            if (bitmap[BITMAP_INDEX(page + run)] & (1 << so)) break;
+            run++;
+        }
+        if (run < count) continue;
+
+        for (n = page; n < page + count; n++) {
+            uint32_t no = BITMAP_OFFSET(n);
+            bitmap[BITMAP_INDEX(n)] |= (1 << no);
+            freePages--;
+        }
+        return (void*)(page * PAGE_SIZE);
+    }
+    return NULL;
+}
+
 void pmmFreePage(void* pageAddr) {
     uint32_t page = (uint32_t)pageAddr / PAGE_SIZE;
     if (page >= totalPages) return;

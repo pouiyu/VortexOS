@@ -3,7 +3,7 @@
 #include <sysinfo/sysinfo.h>
 #include <stdlib/stdlib.h>
 #include "device.h"
-#include <vga.h>
+#include <stdio/vga.h>
 #include <string/string.h>
 #include <fs/fat32.h>
 #include <fs/file.h>

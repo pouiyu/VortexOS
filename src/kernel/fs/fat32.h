@@ -77,6 +77,7 @@ typedef struct {
     uint32_t partitionOffset;    // 分区在磁盘上的起始扇区
     uint16_t reservedSectorCount;// 保留扇区数
     uint8_t  numFats;            // FAT 表份数（通常 2）
+    uint32_t nextFreeCluster;    // 空闲簇扫描续查提示，避免每次从簇 2 重扫 O(n^2)
 } fat32Volume;
 
 typedef struct {
@@ -91,6 +92,19 @@ typedef struct {
 } __attribute__((packed)) fat32LfnEntry;
 
 bool fat32Init(fat32Volume* vol);
+
+/* 把整块磁盘格式化为固定 64MB 的 FAT32(用于安装系统)；成功返回 true 并填充 vol 字段 */
+bool fat32Format(fat32Volume* vol);
+
+/* 递归创建路径中的所有目录(不存在则建) */
+bool fat32MkDirs(fat32Volume* vol, const char* dirPath);
+
+/* 路径是否存在(文件或目录) */
+bool fat32FileExists(fat32Volume* vol, const char* path);
+
+/* 以二进制方式把数据(指定字节数)写入一个已存在的文件，覆盖旧内容 */
+bool fat32WriteRawFile(fat32Volume* vol, const char* path, const void* data, uint32_t size);
+
 bool fat32OpenFile(fat32Volume* vol, const char* path, void** data, uint32_t* size);
 bool fat32ListDir(fat32Volume* vol, const char* path, char* buf, int bufSize);
 bool fat32PathToCluster(fat32Volume* vol, const char* path, uint32_t* outCluster);

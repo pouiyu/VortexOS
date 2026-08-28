@@ -36,6 +36,7 @@ extern exc29
 extern exc30
 extern exc31
 extern keyboardIRQHandler
+extern xhciIRQHandler
 extern vgaPutStr
 extern keyboardHasChar
 extern keyboardGetChar
@@ -251,6 +252,16 @@ irq1_handler:
     call keyboardIRQHandler
     mov al, 0x20
     out 0x20, al
+    popa
+    iret
+
+; 由 xhci.c 在探测到控制器后动态装载到对应向量（PIC 基址 0x20 + irqLine）
+; EOI 已在 xhciIRQHandler 内发送，此处只需调用处理函数。
+global irq_xhci_stub
+
+irq_xhci_stub:
+    pusha
+    call xhciIRQHandler
     popa
     iret
 

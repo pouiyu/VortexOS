@@ -31,8 +31,9 @@ ISO_TARGET = vortexos.iso
 
 # QEMU参数
 QEMU = qemu-system-x86_64
-QEMU_FLAGS = -cdrom $(ISO_TARGET) -hda disk.img -m 256M -boot d -cpu qemu64  -smp 1 -vga std -no-reboot  -d int -D qemu.log -serial stdio -no-shutdown
-QEMU_DEBUG = -s -S -d int -D qemu.log
+# 用 i440fx 以便光驱/硬盘走 legacy IDE 端口(ATA @0x1F0, ATAPI @0x170)，PIO 方式兼容性最好
+QEMU_FLAGS = -cdrom $(ISO_TARGET) -hda disk.img -m 256M -boot d -machine pc -cpu qemu64 -smp 1 -vga std -d int -D qemu.log -serial stdio
+QEMU_DEBUG = -s -S -d int -D qemu.log  -no-shutdown  -no-reboot
 QEMU_KVM = -enable-kvm -cpu host
 
 # 音频参数 - 输出到 WAV 文件（用于测试）
@@ -55,20 +56,16 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.asm
 $(TARGET): $(OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
 
-# 创建 eltorito 镜像
-$(ISO_DIR)/boot/grub/eltorito.img:
-	@mkdir -p $(GRUB_DIR)
-	grub-mkimage -O i386-pc -p /boot/grub -o $@ \
-		biosdisk iso9660 part_msdos fat configfile \
-		search_fs_uuid search_label search \
-		normal boot minicmd ls cat echo test
+# ===== GRUB 引导与 ISO 打包(全部在 WSL 内完成)=====
+# 本 Makefile 只在 WSL 内运行(Windows 侧入口统一为 `wsl -- bash tools/build_wsl.sh`)。
+# build_wsl.sh 会自举编译内核并打包：CD eltorito.img、硬盘 memdisk core.img、
+# hdd_mbr.bin(boot.img+分区表)，以及把整个 system 运行目录(含字体)拷入 CD。
+$(ISO_TARGET): $(TARGET)
+	bash tools/build_wsl.sh
 
-# 构建ISO镜像
-$(ISO_TARGET): $(TARGET) $(ISO_DIR)/boot/grub/eltorito.img
-	@mkdir -p $(GRUB_DIR)
-	cp $(TARGET) $(BOOT_DIR)/
-	cp grub.cfg $(GRUB_DIR)/
-	grub-mkrescue -o $@ $(ISO_DIR)
+# 仅生成硬盘引导所需的 core.img + hdd_mbr.bin, 供快速调试(不进 ISO 打包)
+grub-hdd:
+	cd tools && bash build_wsl.sh
 
 # 清理
 clean:
@@ -94,4 +91,8 @@ run-noaudio: $(ISO_TARGET)
 debug-kvm: $(ISO_TARGET)
 	$(QEMU) $(QEMU_FLAGS) $(QEMU_KVM) $(QEMU_DEBUG)
 
-.PHONY: all clean run run-kvm debug debug-kvm run-noaudio
+# 运行（无显示，串口输出，用于无头测试）
+run-headless: $(ISO_TARGET)
+	$(QEMU) -cdrom $(ISO_TARGET) -m 256M -boot d -machine pc -cpu qemu64 -smp 1 -no-reboot -no-shutdown -display none -serial stdio -device qemu-xhci -device usb-kbd -device usb-mouse
+
+.PHONY: all clean run run-kvm debug debug-kvm run-noaudio run-headless grub-hdd

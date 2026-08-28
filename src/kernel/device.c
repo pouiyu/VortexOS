@@ -1,7 +1,7 @@
 // device.c
 #include "device.h"
 #include <io.h>
-#include <vga.h>
+#include <stdio/vga.h>
 #include <kernel.h>
 
 void deviceShutdown(void) {

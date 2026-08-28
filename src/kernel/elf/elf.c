@@ -5,7 +5,7 @@
 #include <task.h>
 #include <string/string.h>
 #include <stdlib/stdlib.h>
-#include <vga.h>
+#include <stdio/vga.h>
 
 bool elfLoadAndRun(const char* filename) {
     FileHandle file;

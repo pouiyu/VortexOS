@@ -1,5 +1,5 @@
 #include "exceptions.h"
-#include <vga.h>
+#include <stdio/vga.h>
 
 static const char* exceptionNames[32] = {
     "Divide by Zero",

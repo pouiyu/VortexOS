@@ -1,6 +1,6 @@
 #include "sound.h"
 #include <io.h>
-#include <vga.h>
+#include <stdio/vga.h>
 
 #define PIT_CHANNEL0_DATA 0x40
 #define PIT_COMMAND 0x43

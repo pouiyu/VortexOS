@@ -1,5 +1,5 @@
 #include <keyboard.h>
-#include <vga.h>
+#include <stdio/vga.h>
 #include <io.h>
 
 unsigned char keyboardScancode = 0;
@@ -47,18 +47,21 @@ static char handleExtendedScancode(unsigned char scancode) {
 
 void keyboardIRQHandler(void) {
     unsigned char scancode = inb(0x60);
+    keyboardProcessScancode(scancode);
+    outb(0x20, 0x20);
+}
 
+/* 处理一个 PS/2 扫描码（含 E0/F0 前缀状态机）。供 PS/2 IRQ 与 USB HID 注入共用。 */
+void keyboardProcessScancode(unsigned char scancode) {
     // 扩展码前缀
     if (scancode == 0xE0) {
         extendedCode = true;
-        outb(0x20, 0x20);
         return;
     }
 
     // 释放码前缀
     if (scancode == 0xF0) {
         releaseCode = true;
-        outb(0x20, 0x20);
         return;
     }
 
@@ -76,7 +79,6 @@ void keyboardIRQHandler(void) {
         }
         extendedCode = false;
         releaseCode = false;
-        outb(0x20, 0x20);
         return;
     }
 
@@ -102,8 +104,6 @@ void keyboardIRQHandler(void) {
             keyboardScancode = 0;       // 修饰键释放不清空待处理按键
         }
     }
-
-    outb(0x20, 0x20);
 }
 
 void keyboardInit(void) {

@@ -1,8 +1,18 @@
 #include "sysinfo.h"
 #include "config.h"
-#include <vga.h>
+#include <stdio/vga.h>
 #include <keyboard.h>
 #include <kernel.h>
+#include <stdio/vbe.h>
+
+/* 输出无前导零的十进制数 */
+static void sysinfoPutDec(uint32_t value) {
+    char buf[12];
+    int i = 0;
+    if (value == 0) { vgaPutChar('0'); return; }
+    while (value) { buf[i++] = (char)('0' + value % 10); value /= 10; }
+    while (i--) vgaPutChar(buf[i]);
+}
 
 void showSystemInfo(void) {
     vgaClear();
@@ -28,7 +38,38 @@ void showDeviceInfo(void) {
     vgaClear();
 
     drawTitle("Device Info");
-    vgaPutStr("Don't know");
+    if (vbeInit() == 0) {
+        vbeSyncInfo();
+        vgaPutStr("Video (VBE/LFB):\n");
+        vgaPutStr("  Resolution   : ");
+        if (gVbeInfo.enabled) {
+            sysinfoPutDec(gVbeInfo.xres);
+            vgaPutChar('x');
+            sysinfoPutDec(gVbeInfo.yres);
+        } else {
+            vgaPutStr("80x25");
+        }
+        vgaPutChar('\n');
+        vgaPutStr("  Depth        : ");
+        if (gVbeInfo.enabled) {
+            sysinfoPutDec(gVbeInfo.bpp);
+            vgaPutStr(" bpp\n");
+        } else {
+            vgaPutStr("text (VGA font)\n");
+        }
+        vgaPutStr("  Vram         : ");
+        sysinfoPutDec(gVbeInfo.vramSize / (1024u * 1024u));
+        vgaPutStr(" MB\n");
+        vgaPutStr("  Framebuffer  : 0x");
+        vgaPutHex32(gVbeInfo.lfbAddr);
+        vgaPutChar('\n');
+        if (gVbeInfo.enabled)
+            vgaPutStr("  Mode         : graphics\n");
+        else
+            vgaPutStr("  Mode         : text\n");
+    } else {
+        vgaPutStr("Video: not detected\n");
+    }
     messageBox("");
 }
 

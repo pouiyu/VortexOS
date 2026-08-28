@@ -4,7 +4,7 @@
 #include <mm/paging.h>
 #include <task.h>
 #include <string/string.h>
-#include <vga.h>
+#include <stdio/vga.h>
 #include <stddef.h>
 
 static inline uint32_t alignUp(uint32_t value, uint32_t align) {

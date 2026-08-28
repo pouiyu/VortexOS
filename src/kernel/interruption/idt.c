@@ -1,7 +1,7 @@
 #include "idt.h"
 #include "exceptions.h"
 #include <string/string.h>
-#include <vga.h>
+#include <stdio/vga.h>
 #include <io.h>
 
 // isr 入口
