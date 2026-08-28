@@ -36,6 +36,7 @@ extern exc29
 extern exc30
 extern exc31
 extern keyboardIRQHandler
+extern mouseIRQHandler
 extern xhciIRQHandler
 extern vgaPutStr
 extern keyboardHasChar
@@ -252,6 +253,14 @@ irq1_handler:
     call keyboardIRQHandler
     mov al, 0x20
     out 0x20, al
+    popa
+    iret
+
+global irq12_handler
+
+irq12_handler:
+    pusha
+    call mouseIRQHandler    ; EOI(主+从) 已在 mouseIRQHandler 内发送
     popa
     iret
 

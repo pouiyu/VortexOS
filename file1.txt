@@ -1,2 +1,0 @@
-Hello, VortexOS!
-This a test file.

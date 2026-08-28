@@ -1,5 +1,6 @@
 #include "interruption/idt.h"
 #include <keyboard.h>
+#include <mouse.h>
 #include <sound.h>
 #include <stdio/vga.h>
 #include <string/string.h>
@@ -495,6 +496,50 @@ static void handleSelect(void) {
 }
 
 /* 进入图形模式：上半部显示显卡基本信息，下半部绘制演示画面，按键后返回文本模式 */
+#define MOUSE_POINTER_W 10
+#define MOUSE_POINTER_H 10
+
+/* 鼠标箭头位图(进图形模式时加载一次, 不在每帧读盘) */
+static BmpImage gMouseArrow;
+static bool gHasMouseArrow = false;
+
+/* 用快照缓冲 shadow 恢复 (x,y) 处 MOUSE_POINTER_W x MOUSE_POINTER_H 区域到 LFB。
+ * shw 为 shadow 的一行像素数(屏幕宽度), 越界自动裁剪, 避免贴边越界写 LFB。 */
+static void blitShadowToLfb(const uint32_t* shadow, int shw, int x, int y, int w, int h) {
+    if (x < 0 || y < 0 || x >= vbeWidth || y >= vbeHeight || w <= 0 || h <= 0) return;
+    if (x + w > vbeWidth)  w = vbeWidth  - x;
+    if (y + h > vbeHeight) h = vbeHeight - y;
+    uint32_t* lfb = (uint32_t*)(uintptr_t)gVbeInfo.lfbAddr;
+    for (int yy = 0; yy < h; yy++) {
+        const uint32_t* s = &shadow[(y + yy) * shw + x];
+        uint32_t* d = &lfb[(y + yy) * vbeWidth + x];
+        for (int xx = 0; xx < w; xx++) d[xx] = s[xx];
+    }
+}
+
+/* 指针实际绘制尺寸: 有箭头位图按其尺寸, 否则用内置方块尺寸 */
+#define POINTER_RECT_W (gHasMouseArrow ? (int)gMouseArrow.w : MOUSE_POINTER_W)
+#define POINTER_RECT_H (gHasMouseArrow ? (int)gMouseArrow.h : MOUSE_POINTER_H)
+
+/* 绘制鼠标指针: 有箭头位图用之, 否则回退"白方块+黑边" */
+static void drawMousePointer(int x, int y) {
+    if (gHasMouseArrow) {
+        if (x < vbeWidth && y < vbeHeight)
+            vbeDrawBitmap(x, y, gMouseArrow.pixels, gMouseArrow.w, gMouseArrow.h);
+        return;
+    }
+    for (int iy = 0; iy < MOUSE_POINTER_H; iy++) {
+        for (int ix = 0; ix < MOUSE_POINTER_W; ix++) {
+            bool border = (ix == 0 || ix == MOUSE_POINTER_W - 1 ||
+                           iy == 0 || iy == MOUSE_POINTER_H - 1);
+            vbeSetColor(border ? vbeColor(0, 0, 0) : vbeColor(255, 255, 255));
+            int px = x + ix, py = y + iy;
+            if (px >= 0 && px < vbeWidth && py >= 0 && py < vbeHeight)
+                vbeDrawPixel((uint32_t)px, (uint32_t)py);
+        }
+    }
+}
+
 void graphic_main(unsigned int magic, unsigned int addr) {
     (void)magic; (void)addr;
 
@@ -507,12 +552,56 @@ void graphic_main(unsigned int magic, unsigned int addr) {
     vbeClearScreen();
 
     BmpImage wallpaper;
-    if (bmpLoad("/system/images/wallpaper.bmp", &wallpaper) == 0) {
+    bool hasWallpaper = (bmpLoad("/system/images/wallpaper.bmp", &wallpaper) == 0);
+    if (hasWallpaper)
         vbeDrawBitmap(0, 0, wallpaper.pixels, wallpaper.w, wallpaper.h);
-        bmpFree(&wallpaper);
-    }
 
-    __asm__ volatile ("hlt");
+    /* 中文显示验证：用 16x16 字库渲染一行带中英文的文本 */
+    vbeSetColor(vbeColor(0, 255, 0));
+    vbeDrawStringCJK(20, 20, "VortexOS 你好世界 中文显示");
+
+    /* 加载鼠标箭头位图(仅一次, 供指针绘制复用) */
+    gHasMouseArrow = (bmpLoad("/system/images/mousePointer/arrow.bmp", &gMouseArrow) == 0);
+
+    /* 建一块屏幕快照缓冲：直接快照当前 LFB(含壁纸、已绘制的中文文本等所有静态内容)，
+     * 用于恢复被指针覆盖的区域。这样指针盖过再移开时能完整还原，不会把内容擦掉。 */
+    size_t shadowPix = (size_t)vbeWidth * (size_t)vbeHeight;
+    uint32_t* shadow = (uint32_t*)pmmAllocPages((uint32_t)((shadowPix * 4 + 0xFFF) >> 12));
+    uint32_t* lfbSnapshot = (uint32_t*)(uintptr_t)gVbeInfo.lfbAddr;
+    for (size_t i = 0; i < shadowPix; i++) shadow[i] = lfbSnapshot[i];
+
+    /* 初始化鼠标: 绑定到屏幕尺寸并居中 */
+    mouseSetBounds(vbeWidth, vbeHeight);
+    mouseSetPosition(vbeWidth / 2, vbeHeight / 2);
+    int curX = mouseGetX();
+    int curY = mouseGetY();
+
+    /* 需要接收 IRQ12, 打开中断(若之前被关闭) */
+    __asm__ volatile ("sti");
+    blitShadowToLfb(shadow, vbeWidth, curX, curY, POINTER_RECT_W, POINTER_RECT_H);
+    drawMousePointer(curX, curY);
+
+    for (;;) {
+        /* 事件驱动: 无鼠标事件时让出 CPU(hlt 等待中断) */
+        while (!mouseHasEvent())
+            __asm__ volatile ("hlt");
+
+        int nx = mouseGetX();
+        int ny = mouseGetY();
+
+        /* 消费事件并清掉 pending 标志(绝对坐标已由中断更新) */
+        int moveDx = 0, moveDy = 0;
+        mouseGetMotion(&moveDx, &moveDy);
+        (void)moveDx; (void)moveDy;
+
+        /* 指针位置变化才重绘: 用快照恢复旧区域, 再画新指针 */
+        if (nx != curX || ny != curY) {
+            blitShadowToLfb(shadow, vbeWidth, curX, curY, POINTER_RECT_W, POINTER_RECT_H);
+            curX = nx;
+            curY = ny;
+            drawMousePointer(curX, curY);
+        }
+    }
 }
 
 void kernel_main(unsigned int magic, unsigned int addr) {
@@ -561,6 +650,8 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     keyboardInit();
     vgaPutStr("[KEYBOARD] Initialized\n");
     serialPutStr("[KEYBOARD] Initialized\n");// 调试信息
+    mouseInit();
+    serialPutStr("[MOUSE] Initialized\n");
 
     /* 显卡信息探测：分辨率/色深/显存在 graphic 菜单与 Device Info 中使用 */
     if (vbeInit() == 0) {
@@ -620,6 +711,8 @@ void kernel_main(unsigned int magic, unsigned int addr) {
         }
         /* 把字体读进内存并注册给 VBE，供图形模式 8x16 渲染 */
         loadFontIntoVbe();
+        /* 中文 16x16 字库也注册给 VBE，供 vbeDrawStringCJK 渲染 */
+        loadCjkFontIntoVbe();
     }
     
     __asm__ volatile ("fninit");  // 初始化 FPU

@@ -9,6 +9,8 @@
 #include <keyboard.h>
 #include <mm/paging.h>
 #include <math/math.h>
+#include <string/string.h>
+#include <stdlib/stdlib.h>
 
 /* 解锁/使能控制字（值域，不对外暴露） */
 #define VBE_ID_LCK        0xB0C1   /* 写入该 ID 可解锁 VBE 寄存器 */
@@ -24,6 +26,12 @@ static bool sReady = false;
  * 供 vbeDrawString() 使用。未注入时回退到内置 8x8 点阵。 */
 static uint8_t sFontGlyph[256][16];
 static bool    sFont8x16 = false;
+
+/* 16x16 CJK 点阵字库：由 vbeLoadCjkFont() 从 cjk16.bin 注入，供 vbeDrawStringCJK() 使用。
+ * 内部保存当前字形缓冲指针与记录数；字形按码点升序存储，绘制时用二分查找。 */
+static uint8_t*  sCjkGlyphs   = NULL;   /* 每条 36 字节: [码点_LE4][32 字节点阵] */
+static uint32_t   sCjkCount    = 0;     /* 记录(字符)数 */
+static uint32_t   sCjkCapacity = 0;     /* 已分配字节数 */
 
 /* 当前绘制色：图形模式没有前景/背景色之分，先 vbeSetColor 设置再绘制，
  * 所有绘图/文本函数均使用该颜色。32bpp 为 0x00RRGGBB。 */
@@ -543,5 +551,145 @@ void vbeDrawString(uint16_t x, uint16_t y, const char* str) {
             continue;
         }
         px += vbeDrawChar(px, py, *str);
+    }
+}
+
+/* ==================== CJK(中文)显示支持 ==================== */
+
+#define CJK_REC_SIZE  36          /* 每条记录: [码点_LE4][32 字节点阵] */
+#define CJK_GLYPH_OFF 4           /* 码点之后即为 32 字节点阵 */
+#define CJK_GLYPH_LEN 32
+
+/* 注入 16x16 CJK 点阵字库：cjk16.bin 每条记录 36 字节
+ * (码点升序)。内部复制保存，调用方释放原缓冲不影响使用；已加载则替换。 */
+void vbeLoadCjkFont(const uint8_t* data, uint32_t size) {
+    if (!data || size < CJK_REC_SIZE) return;
+    uint32_t count = size / CJK_REC_SIZE;
+    uint32_t bytes = count * CJK_REC_SIZE;
+
+    if (bytes > sCjkCapacity) {
+        uint8_t* nb = malloc(bytes);
+        if (!nb) return;
+        if (sCjkGlyphs) free(sCjkGlyphs);
+        sCjkGlyphs = nb;
+        sCjkCapacity = bytes;
+    }
+    memcpy(sCjkGlyphs, data, bytes);
+    sCjkCount = count;
+}
+
+/* 在 CJK 字库中二分查找码点，命中返回指向其 16x16 点阵的指针，否则 NULL。
+ * 依赖字形按码点升序存储(由 cjk16.bin 生成时保证)。 */
+static const uint8_t* cjkFindGlyph(uint32_t code) {
+    if (!sCjkGlyphs || sCjkCount == 0) return NULL;
+
+    uint32_t lo = 0, hi = sCjkCount;
+    while (lo < hi) {
+        uint32_t mid = (lo + hi) >> 1;
+        const uint8_t* rec = sCjkGlyphs + mid * CJK_REC_SIZE;
+        uint32_t cp = (uint32_t)rec[0] | ((uint32_t)rec[1] << 8)
+                    | ((uint32_t)rec[2] << 16) | ((uint32_t)rec[3] << 24);
+        if (cp < code)       lo = mid + 1;
+        else if (cp > code)  hi = mid;
+        else return rec + CJK_GLYPH_OFF;
+    }
+    return NULL;
+}
+
+/* 解码 UTF-8 序列：str 指向首字节，len 为后续参与解码的剩余长度。
+ * 返回解码后的码点；非法序列返回 (uint32_t)-1。 */
+static uint32_t utf8Decode(const uint8_t* s, uint32_t len) {
+    uint8_t b0 = s[0];
+    uint32_t cp;
+    uint32_t need;
+    if (b0 < 0x80) { return b0; }
+    else if ((b0 & 0xE0) == 0xC0) { cp = b0 & 0x1F; need = 1; }
+    else if ((b0 & 0xF0) == 0xE0) { cp = b0 & 0x0F; need = 2; }
+    else if ((b0 & 0xF8) == 0xF0) { cp = b0 & 0x07; need = 3; }
+    else return (uint32_t)-1;
+
+    if (len < need) return (uint32_t)-1;   /* 序列不完整 */
+    for (uint32_t i = 1; i <= need; i++) {
+        if ((s[i] & 0xC0) != 0x80) return (uint32_t)-1;   /* 续字节非法 */
+        cp = (cp << 6) | (s[i] & 0x3F);
+    }
+    return cp;
+}
+
+/* 在 (x,y) 用当前绘制色渲染单个全宽汉字，字形为内嵌 16 字节*2 的 16x16 点阵。
+ * 返回该字符的横向步进(16 像素)。
+ * 字形在 16x16 内垂直居中，而 8x16 ASCII 字形贴近顶部行；为与 ASCII 顶部视觉对齐，
+ * 把整幅字形向上偏移 CJK_GLYPH_UPDAWN(2) 像素绘制(内容不丢弃)，顶部越界的行自动裁剪。 */
+#define CJK_GLYPH_UPDAWN 2
+
+static uint16_t vbeDrawCjkGlyph(uint16_t x, uint16_t y, const uint8_t* glyph) {
+    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32 || !glyph) return 16;
+
+    uint32_t* fb = (uint32_t*)gVbeInfo.lfbAddr;
+    for (uint16_t row = 0; row < 16; row++) {
+        /* 整幅字形上移 CJK_GLYPH_UPDAWN 像素；顶部越界的行(负数)跳过 */
+        int yy = (int)y + row - CJK_GLYPH_UPDAWN;
+        if (yy >= (int)gVbeInfo.yres) break;
+        if (yy < 0) continue;
+        uint8_t hi = glyph[row * 2];
+        uint8_t lo = glyph[row * 2 + 1];
+        for (uint16_t col = 0; col < 16; col++) {
+            uint16_t xx = x + col;
+            if (xx >= gVbeInfo.xres) break;
+            uint8_t bit = (col < 8) ? (uint8_t)(0x80 >> col)
+                                    : (uint8_t)(0x80 >> (col - 8));
+            uint8_t src = (col < 8) ? hi : lo;
+            if (src & bit)
+                fb[yy * gVbeInfo.xres + xx] = sColor;
+        }
+    }
+    return 16;
+}
+
+/* 识别 UTF-8 字符串并渲染：ASCII(<0x80) 用 8x16 字体，
+ * 多字节字符若能匹配 CJK 字库则以 16x16 双宽渲染，否则跳过。
+ * 支持 '\n' 换行、'\r' 回车。使用当前绘制色。 */
+void vbeDrawStringCJK(uint16_t x, uint16_t y, const char* str) {
+    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32 || !str) return;
+
+    const uint8_t charH  = sFont8x16 ? 16 : 8;
+    const char*   p      = str;
+    uint16_t      px     = x;
+    uint16_t      py     = y;
+
+    while (*p) {
+        uint8_t b0 = (uint8_t)*p;
+
+        if (b0 == '\n') { py += charH; px = x; p++; continue; }
+        if (b0 == '\r') { px = x; p++; continue; }
+
+        /* 判断长度并解码多字节字符 */
+        if (b0 >= 0x80) {
+            uint32_t need = 0;
+            if ((b0 & 0xE0) == 0xC0) need = 2;
+            else if ((b0 & 0xF0) == 0xE0) need = 3;
+            else if ((b0 & 0xF8) == 0xF0) need = 4;
+
+            if (need) {
+                const uint8_t* rest = (const uint8_t*)p;
+                uint32_t cp = utf8Decode(rest, (uint32_t)(strlen(p)));
+                if (cp != (uint32_t)-1) {
+                    const uint8_t* glyph = cjkFindGlyph(cp);
+                    if (glyph) {
+                        px += vbeDrawCjkGlyph(px, py, glyph);
+                        p += (int)need;
+                        continue;
+                    }
+                }
+                /* 未匹配 CJK 字库：跳过该多字节序列(占一字符宽) */
+                p += (int)need;
+                px += 16;
+                continue;
+            }
+        }
+
+        /* 普通 ASCII */
+        px += vbeDrawChar(px, py, *p);
+        p++;
     }
 }

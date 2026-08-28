@@ -271,6 +271,15 @@ bool loadFontFromCd(void) {
     instLog("[FONT] installed to /system/font, size=");
     putDec32(size);
     instLogLine(" bytes");
+
+    /* 顺带从光驱刷新中文 16x16 字库到硬盘（随 system 整树分发） */
+    uint32_t cjkSize = 0;
+    uint8_t* cjk = readCdFile(CD_FONT_CJK_PATH, &cjkSize);
+    if (cjk) {
+        if (cjkSize >= 36)
+            writeDiskFile(DISK_FONT_DIR, DISK_FONT_CJK_PATH, cjk, cjkSize);
+        free(cjk);
+    }
     return true;
 }
 
@@ -309,6 +318,28 @@ void loadFontIntoVbe(void) {
     free(buf);
 
     instLog("[FONT] loaded into VBE: ");
+    putDec32((uint32_t)got);
+    instLogLine(" bytes");
+}
+
+/* 把硬盘上的 cjk16.bin 读进内存并注册给 VBE，供图形模式 16x16 中文渲染使用。 */
+void loadCjkFontIntoVbe(void) {
+    if (!fsVolume.valid) return;
+
+    FileHandle f;
+    if (!fsOpen(&f, DISK_FONT_CJK_PATH)) return;
+    if (f.size < 36) { fsClose(&f); return; }
+
+    uint8_t* buf = malloc(f.size);
+    if (!buf) { fsClose(&f); return; }
+
+    int got = fsRead(&f, buf, f.size);
+    fsClose(&f);
+
+    if (got >= 36) vbeLoadCjkFont(buf, (uint32_t)got);
+    free(buf);
+
+    instLog("[FONT] CJK loaded into VBE: ");
     putDec32((uint32_t)got);
     instLogLine(" bytes");
 }
@@ -512,7 +543,16 @@ static bool cdSystemDiffers(void) {
 void loadFontFromCdIntoVbe(void) {
     uint32_t size = 0;
     uint8_t* data = readCdFile(CD_FONT_PATH, &size);
-    if (!data) return;
-    if (size <= 256 * 17) vbeLoadFont(data, size);
-    free(data);
+    if (data) {
+        if (size <= 256 * 17) vbeLoadFont(data, size);
+        free(data);
+    }
+
+    /* 中文 16x16 字库随 system 目录分发，同样直接读自光驱 */
+    uint32_t cjkSize = 0;
+    uint8_t* cjk = readCdFile(CD_FONT_CJK_PATH, &cjkSize);
+    if (cjk) {
+        if (cjkSize >= 36) vbeLoadCjkFont(cjk, cjkSize);
+        free(cjk);
+    }
 }

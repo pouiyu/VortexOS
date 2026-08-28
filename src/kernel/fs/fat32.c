@@ -561,6 +561,23 @@ bool fat32FindDirEntry(fat32Volume* vol, uint32_t dirCluster,
                     return true;
                 }
 
+                // 8.3 短文件名回退匹配：
+                // 当文件由 ISO9660 安装(名被截断成 8.3、未写 LFN)时，磁盘上只存了
+                // 短名。把请求的长名转成 8.3 形式再与目录项原始短名逐字节比较。
+                char want83[12];
+                fat32NameTo83(name, want83);
+                bool shortMatch = true;
+                for (int b = 0; b < 11; b++) {
+                    uint8_t a = e->name[b], c = (uint8_t)want83[b];
+                    if (a >= 'a' && a <= 'z') a -= 32;
+                    if (c >= 'a' && c <= 'z') c -= 32;
+                    if (a != c) { shortMatch = false; break; }
+                }
+                if (shortMatch) {
+                    *result = *e;
+                    return true;
+                }
+
                 lfnLen = 0;
                 memset(lfnBuffer, 0, sizeof(lfnBuffer));
                 memset(lfnSegments, 0, sizeof(lfnSegments));
@@ -1263,6 +1280,24 @@ bool fat32WriteRawFile(fat32Volume* vol, const char* path, const void* data, uin
                 }
 
                 if (strcasecmp(entryName, name) == 0) {
+                    e->firstClusterHigh = (uint16_t)(first >> 16);
+                    e->firstClusterLow  = (uint16_t)(first & 0xFFFF);
+                    e->fileSize         = size;
+                    if (ataWriteSector(sector + s, sectorBuf) != 0) return false;
+                    return true;
+                }
+
+                // 8.3 短文件名回退匹配(与 fat32FindDirEntry 一致)
+                char want83[12];
+                fat32NameTo83(name, want83);
+                bool shortMatch = true;
+                for (int b = 0; b < 11; b++) {
+                    uint8_t a = e->name[b], c = (uint8_t)want83[b];
+                    if (a >= 'a' && a <= 'z') a -= 32;
+                    if (c >= 'a' && c <= 'z') c -= 32;
+                    if (a != c) { shortMatch = false; break; }
+                }
+                if (shortMatch) {
                     e->firstClusterHigh = (uint16_t)(first >> 16);
                     e->firstClusterLow  = (uint16_t)(first & 0xFFFF);
                     e->fileSize         = size;

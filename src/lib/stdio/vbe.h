@@ -61,6 +61,19 @@ void vbeDrawString(uint16_t x, uint16_t y, const char* str);   /* 字符串 */
 /* 注入 8x16 字形：font.bin 每字符 17 字节 = [码][16 行] */
 void vbeLoadFont(const uint8_t* data, uint32_t size);
 
+/* 注入 16x16 CJK 点阵字形：cjk16.bin 每条记录 36 字节 =
+ *   [0..3] 4 字节小端 Unicode 码点
+ *   [4..35] 32 字节 16x16 点阵(每行 2 字节: hi=左半 8 列, lo=右半 8 列, 共 16 行)
+ * 记录按码点升序排列，仅收纳码点 >= 0x80 的中文等字符。
+ * data 指向的缓冲在此函数内会被复制保存，调用方可自由释放原缓冲。 */
+void vbeLoadCjkFont(const uint8_t* data, uint32_t size);
+
+/* 识别 UTF-8 编码的字符串并渲染：码点 < 0x80 用 8x16 字体，
+ * 码点 >= 0x80 且 CJK 字库中存在时以 16x16 双宽字形渲染，
+ * 未收录的多字节字符跳过(占一字符宽)。支持 '\n' 换行、'\r' 回车。
+ * 使用当前绘制色。 */
+void vbeDrawStringCJK(uint16_t x, uint16_t y, const char* str);
+
 static inline uint32_t vbeColor(uint8_t r, uint8_t g, uint8_t b) {
     // 最常见的是 0x00RRGGBB
     return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;

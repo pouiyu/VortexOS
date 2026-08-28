@@ -81,6 +81,7 @@ static IDTPtr idtPtr;
 
 extern void idtLoad(IDTPtr* ptr);
 extern void irq1_handler(void);
+extern void irq12_handler(void);
 
 void idtSetGate(uint8_t vector, void* handler, uint16_t selector, uint8_t flags) {
     uint32_t addr = (uint32_t)handler;
@@ -106,6 +107,7 @@ void idtInit(void) {
     // 注册所有门（在 idtLoad 之前）
     idtSetGate(0x21, irq1_handler, 0x08, 0x8E);
     idtSetGate(0x20, irq0_handler, 0x08, 0x8E);
+    idtSetGate(0x2C, irq12_handler, 0x08, 0x8E);
     exceptionsInit();
 
     idtLoad(&idtPtr);
@@ -120,7 +122,8 @@ void idtInit(void) {
     outb(0x21, 0x01);
     outb(0xA1, 0x01);
 
-    // 打开 IRQ0 和 IRQ1
-    outb(0x21, 0xFC);
-    outb(0xA1, 0xFF);
+    // 打开 IRQ0、IRQ1 和 IRQ12
+    // 主片 0xF8: bit0/1/2 置 0 => 开 IRQ0(时钟)+IRQ1(键盘)+IRQ2(级联, 必须解掩否则从片中断无法转发)
+    outb(0x21, 0xF8);
+    outb(0xA1, 0xEF);   // 仅解掩从片 IRQ12(bit4=0), 其余(IRQ8~15)保持屏蔽
 }

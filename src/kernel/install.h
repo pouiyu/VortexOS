@@ -8,11 +8,13 @@
 
 /* 光驱里的字体文件：随 system 目录分发(构建期从 system/font/font.bin 拷入) */
 #define CD_FONT_PATH   "SYSTEM/FONT/FONT.BIN"
+#define CD_FONT_CJK_PATH "SYSTEM/FONT/CJK16.BIN"
 
 /* 硬盘上系统根目录与字体路径 */
 #define DISK_SYSTEM_DIR "/system"
 #define DISK_FONT_DIR  "/system/font"
 #define DISK_FONT_PATH "/system/font/font.bin"
+#define DISK_FONT_CJK_PATH "/system/font/cjk16.bin"
 
 /* 光驱里的 GRUB 装盘镜像与系统文件(大写为 ISO9660 规范化形式) */
 #define CD_GRUB_MBR_PATH  "GRUB/HDD_MBR.BIN"
@@ -48,6 +50,9 @@ void verifyFontOnDisk(void);
 
 /* 把硬盘上的 font.bin 读进内存并注册给 VBE（8x16 渲染） */
 void loadFontIntoVbe(void);
+
+/* 把硬盘上的 cjk16.bin 读进内存并注册给 VBE（16x16 中文渲染） */
+void loadCjkFontIntoVbe(void);
 
 /* “从 CD 运行本轮”：不写盘，字体直接读自光驱并加载进 VBE */
 void loadFontFromCdIntoVbe(void);

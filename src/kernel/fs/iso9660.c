@@ -13,6 +13,7 @@
 static uint8_t sBlock[ATAPI_BLOCK_SIZE];
 
 static bool     sValid     = false;
+static bool     sJoliet    = false;   /* 是否使用 Joliet(UTF-16BE 长名)补充卷描述符 */
 static uint32_t sBlockSize = 2048;
 static uint32_t sRootExt   = 0;   /* 根目录数据起始逻辑块 */
 static uint32_t sRootLen   = 0;   /* 根目录数据字节数 */
@@ -43,42 +44,91 @@ static uint32_t le32(const uint8_t* p) {
 bool iso9660Init(void) {
     if (!atapiReady()) { serialPutStr("[ISO] not ready\n"); return false; }
 
-    /* 主卷描述符(PVD)位于整个光盘的第 16 块(重定位扇区号 16) */
-    if (atapiReadBlock(16, sBlock) != 0) { serialPutStr("[ISO] read PVD failed\n"); return false; }
-    if (sBlock[0] != 1) { serialPutStr("[ISO] not PVD\n"); return false; }
-    if (!(sBlock[1] == 'C' && sBlock[2] == 'D' && sBlock[3] == '0' &&
-          sBlock[4] == '0' && sBlock[5] == '1')) { serialPutStr("[ISO] no CD001\n"); return false; }
+    uint32_t pvdExt = 0, pvdLen = 0;       /* 普通 ISO9660(PVD) */
+    uint32_t jolExt = 0, jolLen = 0;       /* Joliet(SVD, UTF-16BE 长名) */
+    bool havePvd = false, haveJoliet = false;
 
-    /* 逻辑块大小：双端序 16 位字段，小端副本在前(偏移 128-129) */
-    sBlockSize = (uint32_t)sBlock[128] | ((uint32_t)sBlock[129] << 8);
-    if (sBlockSize == 0) sBlockSize = 2048;
+    /* 卷描述符序列从逻辑块 16 开始，16~31 内逐个扫描；
+     * 类型 1=PVD，类型 2=SVD(可能为 Joliet)，类型 255=终结符。 */
+    for (uint32_t lba = 16; lba < 32; lba++) {
+        if (atapiReadBlock(lba, sBlock) != 0) break;
+        uint8_t type = sBlock[0];
+        if (type == 255) break;
+        if (type != 1 && type != 2) continue;
+        if (!(sBlock[1] == 'C' && sBlock[2] == 'D' && sBlock[3] == '0' &&
+              sBlock[4] == '0' && sBlock[5] == '1')) continue;
 
-    /* 根目录记录位于 PVD 偏移 156；双端序 32 位字段小端副本在前(自身[0..3]) */
-    isoDirEntry* root = (isoDirEntry*)(sBlock + 156);
-    sRootExt = le32(root->extentLBA);
-    sRootLen = le32(root->dataLen);
+        /* 逻辑块大小(双端序 16 位，PVD 在小端副本偏移 128-129) */
+        uint32_t bs = (uint32_t)sBlock[128] | ((uint32_t)sBlock[129] << 8);
+        if (bs != 0) sBlockSize = bs;
+        else if (sBlockSize != 2048 && sBlockSize != 0) sBlockSize = 2048;
 
+        /* 根目录记录位于卷描述符偏移 156 */
+        isoDirEntry* root = (isoDirEntry*)(sBlock + 156);
+        if (type == 1) {
+            pvdExt = le32(root->extentLBA);
+            pvdLen = le32(root->dataLen);
+            havePvd = true;
+        } else {
+            /* Joliet SVD 的 Escape Sequence(偏移 88, 32 字节)以 "%/" 开头，
+             * 第三字节为 @ / C / E / 1 / 2 之一才表明目录名是 UTF-16BE。 */
+            const uint8_t* esc = sBlock + 88;
+            if (esc[0] == '%' && esc[1] == '/' &&
+                (esc[2] == '@' || esc[2] == 'C' || esc[2] == 'E' ||
+                 esc[2] == '1' || esc[2] == '2')) {
+                jolExt = le32(root->extentLBA);
+                jolLen = le32(root->dataLen);
+                haveJoliet = true;
+                break;   /* 只读 16~18，够用；拿到即止减少 CD 读 */
+            }
+        }
+    }
+
+    if (!havePvd && !haveJoliet) { serialPutStr("[ISO] no volume descriptor\n"); return false; }
+
+    /* 优先使用 Joliet：装盘时能拿到完整长名，避免 8.3 截断碰撞 */
+    sJoliet = haveJoliet;
+    if (sJoliet) { sRootExt = jolExt; sRootLen = jolLen; }
+    else         { sRootExt = pvdExt; sRootLen = pvdLen; }
+
+    serialPutStr(sJoliet ? "[ISO] joliet root\n" : "[ISO] iso9660 root\n");
     sValid = true;
     return true;
 }
 
-/* 比较 ISO 文件名与期望名：去掉 ";版本号" 后缀、大小写不敏感 */
-static bool nameEquals(const uint8_t* cdName, uint8_t nameLen, const char* want) {
-    char n[64];
-    uint8_t len = nameLen < 63 ? nameLen : 63;
-    memcpy(n, cdName, len);
-    n[len] = '\0';
-
-    /* 去掉尾部的 ";n" 版本号 */
-    if (len > 1) {
-        uint8_t k = len;
-        while (k > 0 && n[k - 1] >= '0' && n[k - 1] <= '9') k--;
-        if (k > 0 && n[k - 1] == ';' && k < len) k--;
-        if (k == 0) k = len;
-        len = k;
-        n[len] = '\0';
+/* 把目录记录的文件名字字段解码成 ASCII 字符串(写 NUL 结尾)：
+ *   - Joliet：UTF-16BE，每字符 2 字节，无 ";n" 版本号；
+ *     可读 ASCII 直接保留，非 ASCII 一律映射为 '?'；
+ *   - 普通 ISO：ASCII(8.3)，结尾可能带 ";n" 版本号，需要去掉。 */
+static void isoDirName(const uint8_t* nm, uint8_t byteLen, char* out) {
+    if (sJoliet) {
+        int idx = 0;
+        uint8_t i = 0;
+        while (i + 1 < byteLen && idx < 63) {
+            uint16_t u = ((uint16_t)nm[i] << 8) | nm[i + 1];
+            out[idx++] = (u < 0x80) ? (char)u : '?';
+            i += 2;
+        }
+        out[idx] = '\0';
+    } else {
+        uint8_t len = byteLen < 63 ? byteLen : 63;
+        memcpy(out, nm, len);
+        out[len] = '\0';
+        /* 去掉尾部的 ";n" 版本号 */
+        if (len > 1) {
+            uint8_t k = len;
+            while (k > 0 && out[k - 1] >= '0' && out[k - 1] <= '9') k--;
+            if (k > 0 && out[k - 1] == ';' && k < len) k--;
+            if (k == 0) k = len;
+            out[k] = '\0';
+        }
     }
-    return strcasecmp(n, want) == 0;
+}
+
+/* 是否为 "." / ".." 目录项(普通 ISO 用 0x00/0x01 表示，Joliet 用真实点号) */
+static bool isDotDir(const char* n) {
+    if (n[0] == '\0' || n[0] == '\x01') return true;
+    return strcmp(n, ".") == 0 || strcmp(n, "..") == 0;
 }
 
 /* 在某个目录数据上查找名为 name 的项 */
@@ -98,13 +148,15 @@ static bool findEntry(uint32_t ext, uint32_t dataLen, const char* name,
             uint8_t nlen = e->nameLen;
             const uint8_t* nm = sBlock + off + 33;
 
-            /* 跳过 "." 与 ".." */
-            if (nlen == 1 && (nm[0] == 0x00 || nm[0] == 0x01)) {
+            /* 记录名解码后判断是否为 "." 或 ".." */
+            char nbuf[64];
+            isoDirName(nm, nlen, nbuf);
+            if (isDotDir(nbuf)) {
                 off += len;
                 continue;
             }
 
-            if (nameEquals(nm, nlen, name)) {
+            if (strcasecmp(nbuf, name) == 0) {
                 if (outExt)   *outExt = le32(e->extentLBA);
                 if (outLen)   *outLen = le32(e->dataLen);
                 if (outFlags) *outFlags = e->flags;
@@ -150,19 +202,10 @@ bool iso9660FindFile(const char* path, uint32_t* ext, uint32_t* len) {
     return resolveDir(path, false, ext, len);
 }
 
-/* 去掉 ISO 文件名的 ";n" 版本号后缀，结果写入 out(供遍历回调使用) */
+/* 去掉 ISO 文件名的 ";n" 版本号后缀，结果写入 out(供遍历回调使用)。
+ * Joliet(长名)模式下名称无版本号，这里直接走统一解码。 */
 static void stripVersion(const uint8_t* cdName, uint8_t nameLen, char* out) {
-    uint8_t len = nameLen < 63 ? nameLen : 63;
-    memcpy(out, cdName, len);
-    out[len] = '\0';
-
-    if (len > 1) {
-        uint8_t k = len;
-        while (k > 0 && out[k - 1] >= '0' && out[k - 1] <= '9') k--;
-        if (k > 0 && out[k - 1] == ';' && k < len) k--;
-        if (k == 0) k = len;
-        if (k < len) { out[k] = '\0'; }
-    }
+    isoDirName(cdName, nameLen, out);
 }
 
 bool iso9660ListDir(const char* path, iso9660Visitor visit, void* arg) {
@@ -200,12 +243,9 @@ bool iso9660ListDir(const char* path, iso9660Visitor visit, void* arg) {
             const uint8_t* nm = blk + off + 33;
             off += reclen;
 
-            /* 跳过 "." 与 ".." */
-            if (nlen == 1 && (nm[0] == 0x00 || nm[0] == 0x01)) continue;
-
             char name[64];
             stripVersion(nm, nlen, name);
-            if (name[0] == '\0') continue;
+            if (isDotDir(name)) continue;
 
             if (!visit(name, le32(e->extentLBA), le32(e->dataLen), e->flags, arg)) {
                 free(buf);
