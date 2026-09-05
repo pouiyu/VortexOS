@@ -9,6 +9,7 @@
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
 #define VGA_MEMORY 0xB8000
+#define VGA_FONT_MEMORY 0xA0000   /* 字模平面窗口(plane 2)，上传字体时映射到此处 */
 
 #define VGA_CTRL_REG 0x3D4
 #define VGA_DATA_REG 0x3D5
@@ -94,5 +95,10 @@ void vgaPutColorRange(uint8_t row, uint8_t startCol, uint8_t endCol);
 void vgaScrollView(int delta);       /* +1 向上看更早内容，-1 向下回到实时 */
 void vgaScrollViewReset(void);       /* 强制恢复实时视图 */
 int  vgaScrollViewActive(void);      /* 当前是否处于滚动视图 */
+
+/* 把 256×16 的 8x16 点阵字库(每字符 16 字节扫描线，glyphs[code*16..+15])
+ * 上传到 VGA 字模平面，使文本模式(Shell/菜单)显示该字体。
+ * 必须在文本模式(进入 VBE 图形模式之前)调用。 */
+void vgaLoadFont(const uint8_t* glyphs);
 
 #endif

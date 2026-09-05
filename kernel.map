@@ -1,0 +1,1014 @@
+
+Discarded input sections
+
+ .group         0x00000000        0x8 build/drivers/ata.o
+ .group         0x00000000        0x8 build/drivers/atapi.o
+ .group         0x00000000        0x8 build/drivers/atapi.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/atapi.o
+ .group         0x00000000        0x8 build/drivers/keyboard.o
+ .group         0x00000000        0x8 build/drivers/keyboard.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/keyboard.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/drivers/keyboard.o
+ .group         0x00000000        0x8 build/drivers/mouse.o
+ .group         0x00000000        0x8 build/drivers/mouse.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/mouse.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/drivers/mouse.o
+ .group         0x00000000        0x8 build/drivers/pit.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/pit.o
+ .group         0x00000000        0x8 build/drivers/rtc.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/rtc.o
+ .group         0x00000000        0x8 build/drivers/serial.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/serial.o
+ .group         0x00000000        0x8 build/drivers/sound.o
+ .group         0x00000000        0x8 build/drivers/sound.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/sound.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/drivers/sound.o
+ .group         0x00000000        0x8 build/drivers/usb/hid.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/drivers/usb/hid.o
+ .group         0x00000000        0x8 build/drivers/usb/pci.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/usb/pci.o
+ .group         0x00000000        0x8 build/drivers/usb/xhci.o
+ .group         0x00000000        0x8 build/drivers/usb/xhci.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/drivers/usb/xhci.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/drivers/usb/xhci.o
+ .group         0x00000000        0x8 build/kernel/device.o
+ .group         0x00000000        0x8 build/kernel/device.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/device.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/device.o
+ .group         0x00000000        0x8 build/kernel/elf/elf.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/elf/elf.o
+ .group         0x00000000        0x8 build/kernel/fs/bmp.o
+ .group         0x00000000        0x8 build/kernel/fs/bmp.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/fs/bmp.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/fs/bmp.o
+ .group         0x00000000        0x8 build/kernel/fs/fat32.o
+ .group         0x00000000        0x8 build/kernel/fs/fat32.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/fs/fat32.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/fs/fat32.o
+ .group         0x00000000        0x8 build/kernel/fs/file.o
+ .group         0x00000000        0x8 build/kernel/fs/file.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/fs/file.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/fs/file.o
+ .group         0x00000000        0x8 build/kernel/fs/iso9660.o
+ .group         0x00000000        0x8 build/kernel/fs/iso9660.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/fs/iso9660.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/fs/iso9660.o
+ .group         0x00000000        0x8 build/kernel/fs/path.o
+ .group         0x00000000        0x8 build/kernel/fs/path.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/fs/path.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/fs/path.o
+ .group         0x00000000        0x8 build/kernel/install.o
+ .group         0x00000000        0x8 build/kernel/install.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/install.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/install.o
+ .group         0x00000000        0x8 build/kernel/interruption/exceptions.o
+ .group         0x00000000        0x8 build/kernel/interruption/exceptions.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/interruption/exceptions.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/interruption/exceptions.o
+ .group         0x00000000        0x8 build/kernel/interruption/idt.o
+ .group         0x00000000        0x8 build/kernel/interruption/idt.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/interruption/idt.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/interruption/idt.o
+ .group         0x00000000        0x8 build/kernel/kernel.o
+ .group         0x00000000        0x8 build/kernel/kernel.o
+ .group         0x00000000        0x8 build/kernel/kernel.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/kernel.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/kernel.o
+ .group         0x00000000        0x8 build/kernel/mm/paging.o
+ .group         0x00000000        0x8 build/kernel/mm/paging.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/mm/paging.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/mm/paging.o
+ .group         0x00000000        0x8 build/kernel/mm/pmm.o
+ .group         0x00000000        0x8 build/kernel/mm/pmm.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/mm/pmm.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/mm/pmm.o
+ .group         0x00000000        0x8 build/kernel/shell/commands.o
+ .group         0x00000000        0x8 build/kernel/shell/commands.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/shell/commands.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/shell/commands.o
+ .group         0x00000000        0x8 build/kernel/shell/shell.o
+ .group         0x00000000        0x8 build/kernel/shell/shell.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/shell/shell.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/shell/shell.o
+ .group         0x00000000        0x8 build/kernel/syscall.o
+ .group         0x00000000        0x8 build/kernel/syscall.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/syscall.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/syscall.o
+ .group         0x00000000        0x8 build/kernel/sysinfo/sysinfo.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/sysinfo/sysinfo.o
+ .group         0x00000000        0x8 build/kernel/task.o
+ .group         0x00000000        0x8 build/kernel/task.o
+ .group         0x00000000        0x8 build/kernel/task.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/task.o
+ .text.__x86.get_pc_thunk.dx
+                0x00000000        0x4 build/kernel/task.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/task.o
+ .group         0x00000000        0x8 build/kernel/tss.o
+ .group         0x00000000        0x8 build/kernel/tss.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/tss.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/tss.o
+ .group         0x00000000        0x8 build/kernel/user.o
+ .group         0x00000000        0x8 build/kernel/user.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/user.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/user.o
+ .group         0x00000000        0x8 build/kernel/vex/vex.o
+ .group         0x00000000        0x8 build/kernel/vex/vex.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/kernel/vex/vex.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/kernel/vex/vex.o
+ .group         0x00000000        0x8 build/lib/math/math.o
+ .group         0x00000000        0x8 build/lib/math/math.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/lib/math/math.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/lib/math/math.o
+ .group         0x00000000        0x8 build/lib/stdio/vbe.o
+ .group         0x00000000        0x8 build/lib/stdio/vbe.o
+ .group         0x00000000        0x8 build/lib/stdio/vbe.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/lib/stdio/vbe.o
+ .text.__x86.get_pc_thunk.dx
+                0x00000000        0x4 build/lib/stdio/vbe.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/lib/stdio/vbe.o
+ .group         0x00000000        0x8 build/lib/stdio/vga.o
+ .group         0x00000000        0x8 build/lib/stdio/vga.o
+ .group         0x00000000        0x8 build/lib/stdio/vga.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/lib/stdio/vga.o
+ .text.__x86.get_pc_thunk.dx
+                0x00000000        0x4 build/lib/stdio/vga.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/lib/stdio/vga.o
+ .group         0x00000000        0x8 build/lib/stdlib/stdlib.o
+ .group         0x00000000        0x8 build/lib/stdlib/stdlib.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/lib/stdlib/stdlib.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/lib/stdlib/stdlib.o
+ .group         0x00000000        0x8 build/lib/string/string.o
+ .group         0x00000000        0x8 build/lib/string/string.o
+ .text.__x86.get_pc_thunk.ax
+                0x00000000        0x4 build/lib/string/string.o
+ .text.__x86.get_pc_thunk.bx
+                0x00000000        0x4 build/lib/string/string.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0x00100000                        . = 0x100000
+
+.multiboot      0x00100000       0x18
+ *(.multiboot)
+ .multiboot     0x00100000       0x18 build/boot.o
+
+.text           0x00101000    0x15926
+ *(.text)
+ .text          0x00101000      0x37c build/drivers/ata.o
+                0x00101134                ataInit
+                0x00101144                ataReadSector
+                0x0010125f                ataWriteSector
+ .text          0x0010137c      0x7f8 build/drivers/atapi.o
+                0x00101732                atapiInit
+                0x001017c9                atapiReady
+                0x001018ca                atapiReadBlock
+ .text          0x00101b74      0x3ef build/drivers/keyboard.o
+                0x00101c4f                keyboardIRQHandler
+                0x00101c8e                keyboardProcessScancode
+                0x00101dfa                keyboardInit
+                0x00101e43                keyboardGetChar
+                0x00101f1c                keyboardHasChar
+                0x00101f3a                keyboardSetHandler
+                0x00101f4a                keyboardSetScanCodeSet
+ .text          0x00101f63      0x681 build/drivers/mouse.o
+                0x001020ef                mouseInit
+                0x001022a3                mouseGetMotion
+                0x001022e7                mouseHasEvent
+                0x00102304                mouseGetButtons
+                0x0010231a                mouseGetX
+                0x0010232f                mouseGetY
+                0x00102344                mouseSetPosition
+                0x001023ae                mouseSetBounds
+                0x001023e6                mouseIRQHandler
+ .text          0x001025e4       0x9b build/drivers/pit.o
+                0x0010260d                pitInit
+                0x00102661                pitHandler
+ .text          0x0010267f      0x21f build/drivers/rtc.o
+                0x00102735                rtcInit
+                0x0010274f                rtcGetTime
+ .text          0x0010289e      0x21b build/drivers/serial.o
+                0x001028ee                serialInit
+                0x0010296d                serialPutChar
+                0x001029b3                serialPutStr
+                0x001029e8                serialPutHex8
+                0x00102a4a                serialPutHex16
+                0x00102a88                serialPutHex32
+ .text          0x00102ab9      0x1e5 build/drivers/sound.o
+                0x00102b09                soundPlay
+                0x00102b8a                soundStop
+                0x00102c31                soundBeep
+                0x00102c6f                soundInit
+ .text          0x00102c9e      0x457 build/drivers/usb/hid.o
+                0x00102f63                hidLoadFromXhci
+ .text          0x001030f5      0x5a4 build/drivers/usb/pci.o
+                0x00103196                pciRead32
+                0x001031fa                pciRead16
+                0x00103230                pciRead8
+                0x00103266                pciWrite32
+                0x0010333b                pciScan
+                0x0010362b                pciFindController
+                0x00103665                pciFindClass
+ .text          0x00103699     0x215f build/drivers/usb/xhci.o
+                0x001049c5                xhciArmInterruptIn
+                0x00104a5e                xhciRegisterEp1Handler
+                0x00104b93                xhciIRQHandler
+                0x00104c0d                xhciGetDeviceCount
+                0x00104c54                xhciGetDeviceInfo
+                0x00104e74                xhciInit
+ .text          0x001057f8       0xd0 build/kernel/device.o
+                0x00105821                deviceShutdown
+                0x0010588b                deviceReboot
+ .text          0x001058c8      0x4d8 build/kernel/elf/elf.o
+                0x001058c8                elfLoadAndRun
+ .text          0x00105da0      0x41d build/kernel/fs/bmp.o
+                0x00105da0                bmpLoad
+                0x00106163                bmpFree
+ .text          0x001061bd     0x3849 build/kernel/fs/fat32.o
+                0x001061bd                clusterToSector
+                0x001061e7                readFatEntry
+                0x00106435                fat32Init
+                0x001065d6                fat32PathToCluster
+                0x00106dcc                fat32CreateEntry
+                0x00106fe4                fat32ListDir
+                0x00107481                fat32FindDirEntry
+                0x00107d2d                fat32Remove
+                0x00107e3d                fat32Rename
+                0x001083ca                fat32WriteFile
+                0x00108b41                fat32CopyFile
+                0x00108d7f                fat32Format
+                0x00109115                fat32MkDirs
+                0x00109272                fat32FileExists
+                0x00109299                fat32WriteRawFile
+ .text          0x00109a06      0x508 build/kernel/fs/file.o
+                0x00109b3f                fsOpen
+                0x00109cb7                fsRead
+                0x00109eee                fsClose
+ .text          0x00109f0e      0xa87 build/kernel/fs/iso9660.o
+                0x00109f59                iso9660Init
+                0x0010a6d2                iso9660FindFile
+                0x0010a737                iso9660ListDir
+ .text          0x0010a995      0x181 build/kernel/fs/path.o
+                0x0010a995                pathSplit
+                0x0010aa8b                pathNormalize
+                0x0010aada                pathIsRoot
+ .text          0x0010ab16     0x1a4e build/kernel/install.o
+                0x0010ada8                installSystem
+                0x0010b772                loadFontFromCd
+                0x0010b888                verifyFontOnDisk
+                0x0010b923                loadFontIntoVbe
+                0x0010ba40                loadCjkFontIntoVbe
+                0x0010bbff                loadFontIntoVga
+                0x0010bd1c                loadFontFromCdIntoVga
+                0x0010c25b                installWizard
+                0x0010c4ae                loadFontFromCdIntoVbe
+ .text          0x0010c564      0x99b build/kernel/interruption/exceptions.o
+                0x0010cadf                exc0
+                0x0010cb00                exc1
+                0x0010cb21                exc2
+                0x0010cb42                exc3
+                0x0010cb63                exc4
+                0x0010cb84                exc5
+                0x0010cba5                exc6
+                0x0010cbc6                exc7
+                0x0010cbe7                exc8
+                0x0010cc08                exc9
+                0x0010cc29                exc10
+                0x0010cc4a                exc11
+                0x0010cc6b                exc12
+                0x0010cc8c                exc13
+                0x0010ccad                exc14
+                0x0010ccce                exc15
+                0x0010ccef                exc16
+                0x0010cd10                exc17
+                0x0010cd31                exc18
+                0x0010cd52                exc19
+                0x0010cd73                exc20
+                0x0010cd94                exc21
+                0x0010cdb5                exc22
+                0x0010cdd6                exc23
+                0x0010cdf7                exc24
+                0x0010ce18                exc25
+                0x0010ce39                exc26
+                0x0010ce5a                exc27
+                0x0010ce7b                exc28
+                0x0010ce9c                exc29
+                0x0010cebd                exc30
+                0x0010cede                exc31
+ .text          0x0010ceff      0x549 build/kernel/interruption/idt.o
+                0x0010cf28                exceptionsInit
+                0x0010d240                idtSetGate
+                0x0010d2be                idtInit
+ .text          0x0010d448     0x18b3 build/kernel/kernel.o
+                0x0010d5bf                updateTheme
+                0x0010d66a                vgaSetColorByte
+                0x0010d6a7                drawTitle
+                0x0010d847                drawMainMenu
+                0x0010db63                messageBox
+                0x0010e475                graphic_main
+                0x0010e806                kernel_main
+ .text          0x0010ecfb      0x26a build/kernel/mm/paging.o
+                0x0010ecfb                pagingInit
+                0x0010edd5                pagingMapPage
+                0x0010ee96                pagingCreateUserDirectory
+                0x0010eef4                pagingUnmapPage
+ .text          0x0010ef65      0x393 build/kernel/mm/pmm.o
+                0x0010ef65                pmmInit
+                0x0010f041                pmmAllocPage
+                0x0010f0f0                pmmAllocPages
+                0x0010f25b                pmmFreePage
+                0x0010f2ce                pmmGetFreePages
+                0x0010f2e3                pmmGetTotalPages
+ .text          0x0010f2f8     0x1272 build/kernel/shell/commands.o
+                0x0010f2f8                getCommandList
+ .text          0x0011056a      0x96f build/kernel/shell/shell.o
+                0x00110628                shellGetCwd
+                0x0011063d                shellSetCwd
+                0x001109b4                runShell
+ .text          0x00110ed9       0xbb build/kernel/syscall.o
+                0x00110ed9                syscallHandler
+                0x00110f60                syscallInit
+ .text          0x00110f94      0x3e2 build/kernel/sysinfo/sysinfo.o
+                0x00111038                showSystemInfo
+                0x0011114a                showDeviceInfo
+                0x00111345                showSystemLogo
+ .text          0x00111376      0x60a build/kernel/task.o
+                0x00111376                taskInit
+                0x00111595                taskCreate
+                0x00111684                taskCreateUser
+                0x00111796                taskSchedule
+                0x0011187a                taskYield
+                0x0011192e                taskTick
+ .text          0x00111980       0xf4 build/kernel/tss.o
+                0x00111980                tssInit
+                0x00111a52                tssSetEsp0
+ .text          0x00111a74      0x100 build/kernel/user.o
+                0x00111a74                jumpToUserMode
+                0x00111aa0                sysRead
+                0x00111ac8                sysWrite
+                0x00111af0                sysExit
+                0x00111b07                userTest
+ .text          0x00111b74      0x54b build/kernel/vex/vex.o
+                0x00111b95                vexLoadAndRun
+ .text          0x001120bf      0xabb build/lib/math/math.o
+                0x001120bf                sin
+                0x0011217d                cos
+                0x001121b7                tan
+                0x001121ff                fabs
+                0x00112232                sqrt
+                0x00112293                pow
+                0x0011239a                exp
+                0x001123f3                log
+                0x001124af                log10
+                0x00112509                log2
+                0x00112563                atan
+                0x0011264f                atan2
+                0x0011277d                asin
+                0x001127f5                acos
+                0x00112855                sinh
+                0x001128b0                cosh
+                0x0011290b                tanh
+                0x00112953                floor
+                0x0011298e                ceil
+                0x001129e3                round
+                0x00112a46                trunc
+                0x00112a81                fmod
+                0x00112af7                cbrt
+ .text          0x00112b7a        0x0 build/lib/stdio/stdio.o
+ .text          0x00112b7a     0x1af9 build/lib/stdio/vbe.o
+                0x00112c5a                vbeBeginRamFrame
+                0x00112c73                vbeEndRamFrame
+                0x00112cb4                vbeSetColor
+                0x00112ccd                vbeGetColor
+                0x00112ce2                vbeSetColorRgb
+                0x00112e0c                vbeInit
+                0x00112f47                vbeReady
+                0x00112f5c                vbeSyncInfo
+                0x00113312                vbeSetMode
+                0x0011341c                vbeDisable
+                0x00113449                vbeClearScreen
+                0x001134c5                vbeDrawPixel
+                0x0011353c                vbeDrawFillRect
+                0x001135a4                vbeDrawLineRect
+                0x0011363d                vbeDrawBitmap
+                0x00113884                vbeDrawFillEllipse
+                0x001139f3                vbeDrawLineEllipse
+                0x00113b7b                vbeDrawLine
+                0x00113cf3                vbeLoadFont
+                0x00113da8                vbeDrawChar
+                0x00113f92                vbeDrawString
+                0x00114068                vbeLoadCjkFont
+                0x001144a3                vbeDrawStringCJK
+ .text          0x00114673     0x116b build/lib/stdio/vga.o
+                0x00114904                vgaScrollView
+                0x001149e8                vgaScrollViewReset
+                0x00114a1b                vgaScrollViewActive
+                0x00114a38                vgaLoadFont
+                0x00114bc8                vgaInit
+                0x00114bf7                vgaGetCursorRow
+                0x00114c0d                vgaGetCursorCol
+                0x00114c23                vgaSetCursorPos
+                0x00114cbc                vgaGetCursorPos
+                0x00114cf0                vgaSetCursorStyle
+                0x00114d99                vgaDisableCursor
+                0x00114dc7                vgaEnableCursor
+                0x00114df5                vgaPutColor
+                0x00114e78                vgaFillLineColor
+                0x00114f04                vgaClear
+                0x00114fb0                vgaClearColor
+                0x00115040                vgaClearFgColor
+                0x001150d3                vgaClearBgColor
+                0x00115166                vgaClearChar
+                0x001151f9                vgaPutChar
+                0x0011522d                vgaPutCharColor
+                0x00115492                vgaPutStr
+                0x001154be                vgaPutStrColor
+                0x00115504                vgaScroll
+                0x0011560a                vgaSetColor
+                0x00115646                vgaGetColor
+                0x0011565c                putDecimal
+                0x001156f8                vgaPutHex8
+                0x00115760                vgaPutHex16
+                0x001157a4                vgaPutHex32
+ .text          0x001157de      0x269 build/lib/stdlib/stdlib.o
+                0x00115895                malloc
+                0x001159a1                free
+ .text          0x00115a47      0x866 build/lib/string/string.o
+                0x00115a47                strlen
+                0x00115a78                strnlen
+                0x00115ab1                strcpy
+                0x00115af5                strncpy
+                0x00115b62                strdup
+                0x00115bb5                strcat
+                0x00115c06                strncat
+                0x00115c72                strcmp
+                0x00115cbb                strncmp
+                0x00115d32                strchr
+                0x00115d73                strrchr
+                0x00115dbd                strstr
+                0x00115e42                strpbrk
+                0x00115e94                strspn
+                0x00115f09                strcspn
+                0x00115f7e                strtok
+                0x00115fa8                strtok_r
+                0x0011603a                memcpy
+                0x00116085                memmove
+                0x0011610f                memset
+                0x0011614c                memchr
+                0x0011619a                memcmp
+                0x0011620e                strcasecmp
+ *fill*         0x001162ad        0x3 
+ .text          0x001162b0       0x42 build/boot.o
+                0x001162b0                _start
+ *fill*         0x001162f2        0xe 
+ .text          0x00116300      0x626 build/kernel/interruption/isr.o
+                0x00116300                isr0
+                0x0011632b                isr1
+                0x00116356                isr2
+                0x00116381                isr3
+                0x001163ac                isr4
+                0x001163d7                isr5
+                0x00116402                isr6
+                0x0011642d                isr7
+                0x00116458                isr8
+                0x00116481                isr9
+                0x001164ac                isr10
+                0x001164d5                isr11
+                0x001164fe                isr12
+                0x00116527                isr13
+                0x00116550                isr14
+                0x00116579                isr15
+                0x001165a4                isr16
+                0x001165cf                isr17
+                0x001165f8                isr18
+                0x00116623                isr19
+                0x0011664e                isr20
+                0x00116679                isr21
+                0x001166a2                isr22
+                0x001166cd                isr23
+                0x001166f8                isr24
+                0x00116723                isr25
+                0x0011674e                isr26
+                0x00116779                isr27
+                0x001167a4                isr28
+                0x001167cf                isr29
+                0x001167fa                isr30
+                0x00116823                isr31
+                0x0011684e                irq0_handler
+                0x001168aa                syscall_entry
+                0x00116900                irq1_handler
+                0x0011690c                irq12_handler
+                0x00116914                irq_xhci_stub
+                0x0011691c                idtLoad
+
+.text.__x86.get_pc_thunk.ax
+                0x00116926        0x4
+ .text.__x86.get_pc_thunk.ax
+                0x00116926        0x4 build/drivers/ata.o
+                0x00116926                __x86.get_pc_thunk.ax
+
+.iplt           0x0011692a        0x0
+ .iplt          0x0011692a        0x0 build/drivers/ata.o
+
+.text.__x86.get_pc_thunk.bx
+                0x0011692a        0x4
+ .text.__x86.get_pc_thunk.bx
+                0x0011692a        0x4 build/drivers/atapi.o
+                0x0011692a                __x86.get_pc_thunk.bx
+
+.text.__x86.get_pc_thunk.dx
+                0x0011692e        0x4
+ .text.__x86.get_pc_thunk.dx
+                0x0011692e        0x4 build/kernel/kernel.o
+                0x0011692e                __x86.get_pc_thunk.dx
+
+.rodata         0x00117000     0x28ed
+ *(.rodata)
+ .rodata        0x00117000       0xdc build/drivers/atapi.o
+ *fill*         0x001170dc        0x4 
+ .rodata        0x001170e0      0x1e0 build/drivers/keyboard.o
+ .rodata        0x001172c0       0x5b build/drivers/mouse.o
+ .rodata        0x0011731b       0x11 build/drivers/serial.o
+ .rodata        0x0011732c       0x15 build/drivers/sound.o
+ *fill*         0x00117341       0x1f 
+ .rodata        0x00117360      0x21c build/drivers/usb/hid.o
+ .rodata        0x0011757c      0x254 build/drivers/usb/xhci.o
+ .rodata        0x001177d0       0x3b build/kernel/device.o
+ .rodata        0x0011780b       0xfe build/kernel/elf/elf.o
+ *fill*         0x00117909       0x17 
+ .rodata        0x00117920      0x240 build/kernel/fs/fat32.o
+ .rodata        0x00117b60       0x59 build/kernel/fs/iso9660.o
+ *fill*         0x00117bb9        0x3 
+ .rodata        0x00117bbc      0x630 build/kernel/install.o
+ .rodata        0x001181ec      0x2c9 build/kernel/interruption/exceptions.o
+ *fill*         0x001184b5        0x3 
+ .rodata        0x001184b8      0x57d build/kernel/kernel.o
+ *fill*         0x00118a35        0x3 
+ .rodata        0x00118a38      0x5d9 build/kernel/shell/commands.o
+ *fill*         0x00119011        0x3 
+ .rodata        0x00119014       0x5e build/kernel/shell/shell.o
+ .rodata        0x00119072       0x11 build/kernel/syscall.o
+ *fill*         0x00119083        0x1 
+ .rodata        0x00119084      0x2ea build/kernel/sysinfo/sysinfo.o
+ .rodata        0x0011936e       0x35 build/kernel/user.o
+ *fill*         0x001193a3        0x1 
+ .rodata        0x001193a4       0xf6 build/kernel/vex/vex.o
+ *fill*         0x0011949a        0x6 
+ .rodata        0x001194a0       0x88 build/lib/math/math.o
+ *fill*         0x00119528       0x18 
+ .rodata        0x00119540      0x39c build/lib/stdio/vbe.o
+ .rodata        0x001198dc       0x11 build/lib/stdio/vga.o
+ *(.rodata.*)
+
+.eh_frame       0x001198f0     0x3ef8
+ .eh_frame      0x001198f0      0x14c build/drivers/ata.o
+ .eh_frame      0x00119a3c      0x1b0 build/drivers/atapi.o
+                                0x1dc (size before relaxing)
+ .eh_frame      0x00119bec      0x144 build/drivers/keyboard.o
+                                0x184 (size before relaxing)
+ .eh_frame      0x00119d30      0x1f0 build/drivers/mouse.o
+                                0x230 (size before relaxing)
+ .eh_frame      0x00119f20       0x64 build/drivers/pit.o
+                                 0x90 (size before relaxing)
+ .eh_frame      0x00119f84       0xc0 build/drivers/rtc.o
+                                 0xec (size before relaxing)
+ .eh_frame      0x0011a044      0x100 build/drivers/serial.o
+                                0x12c (size before relaxing)
+ .eh_frame      0x0011a144       0xe4 build/drivers/sound.o
+                                0x124 (size before relaxing)
+ .eh_frame      0x0011a228       0x90 build/drivers/usb/hid.o
+                                 0xbc (size before relaxing)
+ .eh_frame      0x0011a2b8      0x1cc build/drivers/usb/pci.o
+                                0x1f8 (size before relaxing)
+ .eh_frame      0x0011a484      0x3b4 build/drivers/usb/xhci.o
+                                0x3f4 (size before relaxing)
+ .eh_frame      0x0011a838       0x68 build/kernel/device.o
+                                 0xa8 (size before relaxing)
+ .eh_frame      0x0011a8a0       0x24 build/kernel/elf/elf.o
+                                 0x50 (size before relaxing)
+ .eh_frame      0x0011a8c4       0x54 build/kernel/fs/bmp.o
+                                 0x94 (size before relaxing)
+ .eh_frame      0x0011a918      0x404 build/kernel/fs/fat32.o
+                                0x444 (size before relaxing)
+ .eh_frame      0x0011ad1c       0x8c build/kernel/fs/file.o
+                                 0xcc (size before relaxing)
+ .eh_frame      0x0011ada8      0x140 build/kernel/fs/iso9660.o
+                                0x180 (size before relaxing)
+ .eh_frame      0x0011aee8       0x64 build/kernel/fs/path.o
+                                 0xa4 (size before relaxing)
+ .eh_frame      0x0011af4c      0x4bc build/kernel/install.o
+                                0x4fc (size before relaxing)
+ .eh_frame      0x0011b408      0x41c build/kernel/interruption/exceptions.o
+                                0x45c (size before relaxing)
+ .eh_frame      0x0011b824       0x8c build/kernel/interruption/idt.o
+                                 0xcc (size before relaxing)
+ .eh_frame      0x0011b8b0      0x564 build/kernel/kernel.o
+                                0x5a4 (size before relaxing)
+ .eh_frame      0x0011be14       0x8c build/kernel/mm/paging.o
+                                 0xcc (size before relaxing)
+ .eh_frame      0x0011bea0       0xe8 build/kernel/mm/pmm.o
+                                0x128 (size before relaxing)
+ .eh_frame      0x0011bf88      0x3e8 build/kernel/shell/commands.o
+                                0x428 (size before relaxing)
+ .eh_frame      0x0011c370      0x124 build/kernel/shell/shell.o
+                                0x164 (size before relaxing)
+ .eh_frame      0x0011c494       0x48 build/kernel/syscall.o
+                                 0x88 (size before relaxing)
+ .eh_frame      0x0011c4dc       0x90 build/kernel/sysinfo/sysinfo.o
+                                 0xbc (size before relaxing)
+ .eh_frame      0x0011c56c      0x114 build/kernel/task.o
+                                0x168 (size before relaxing)
+ .eh_frame      0x0011c680       0x44 build/kernel/tss.o
+                                 0x84 (size before relaxing)
+ .eh_frame      0x0011c6c4       0xac build/kernel/user.o
+                                 0xec (size before relaxing)
+ .eh_frame      0x0011c770       0x44 build/kernel/vex/vex.o
+                                 0x84 (size before relaxing)
+ .eh_frame      0x0011c7b4      0x300 build/lib/math/math.o
+                                0x340 (size before relaxing)
+ .eh_frame      0x0011cab4      0x4e4 build/lib/stdio/vbe.o
+                                0x538 (size before relaxing)
+ .eh_frame      0x0011cf98      0x508 build/lib/stdio/vga.o
+                                0x55c (size before relaxing)
+ .eh_frame      0x0011d4a0       0x64 build/lib/stdlib/stdlib.o
+                                 0xa4 (size before relaxing)
+ .eh_frame      0x0011d504      0x2e4 build/lib/string/string.o
+                                0x324 (size before relaxing)
+
+.rel.dyn        0x0011d7e8        0x0
+ .rel.got       0x0011d7e8        0x0 build/drivers/ata.o
+ .rel.iplt      0x0011d7e8        0x0 build/drivers/ata.o
+
+.data           0x0011e000      0x2ae
+ *(.data)
+ .data          0x0011e000        0x0 build/drivers/ata.o
+ .data          0x0011e000        0x1 build/drivers/atapi.o
+ .data          0x0011e001        0x0 build/drivers/keyboard.o
+ *fill*         0x0011e001        0x3 
+ .data          0x0011e004        0xc build/drivers/mouse.o
+ .data          0x0011e010        0x0 build/drivers/pit.o
+ .data          0x0011e010        0x0 build/drivers/rtc.o
+ .data          0x0011e010        0x0 build/drivers/serial.o
+ .data          0x0011e010        0x0 build/drivers/sound.o
+ .data          0x0011e010        0x0 build/drivers/usb/hid.o
+ .data          0x0011e010        0x0 build/drivers/usb/pci.o
+ .data          0x0011e010        0x8 build/drivers/usb/xhci.o
+ .data          0x0011e018        0x0 build/kernel/device.o
+ .data          0x0011e018        0x0 build/kernel/elf/elf.o
+ .data          0x0011e018        0x0 build/kernel/fs/bmp.o
+ .data          0x0011e018        0x0 build/kernel/fs/fat32.o
+ .data          0x0011e018        0x0 build/kernel/fs/file.o
+ .data          0x0011e018        0x4 build/kernel/fs/iso9660.o
+ .data          0x0011e01c        0x0 build/kernel/fs/path.o
+ .data          0x0011e01c        0x0 build/kernel/install.o
+ .data          0x0011e01c        0x0 build/kernel/interruption/exceptions.o
+ .data          0x0011e01c        0x0 build/kernel/interruption/idt.o
+ .data          0x0011e01c       0x14 build/kernel/kernel.o
+                0x0011e01c                FG
+                0x0011e01d                cursorTop
+                0x0011e01e                cursorBottom
+                0x0011e020                colorCount
+                0x0011e02c                scanlineCount
+ .data          0x0011e030        0x0 build/kernel/mm/paging.o
+ .data          0x0011e030        0x0 build/kernel/mm/pmm.o
+ .data          0x0011e030        0x0 build/kernel/shell/commands.o
+ *fill*         0x0011e030       0x10 
+ .data          0x0011e040      0x220 build/kernel/shell/shell.o
+ .data          0x0011e260        0x0 build/kernel/syscall.o
+ .data          0x0011e260        0x0 build/kernel/sysinfo/sysinfo.o
+ .data          0x0011e260        0x0 build/kernel/task.o
+ .data          0x0011e260        0x0 build/kernel/tss.o
+ .data          0x0011e260        0x0 build/kernel/user.o
+ .data          0x0011e260        0x0 build/kernel/vex/vex.o
+ .data          0x0011e260        0x0 build/lib/math/math.o
+ .data          0x0011e260        0x0 build/lib/stdio/stdio.o
+ .data          0x0011e260        0xc build/lib/stdio/vbe.o
+                0x0011e264                vbeWidth
+                0x0011e268                vbeHeight
+ .data          0x0011e26c        0x5 build/lib/stdio/vga.o
+ .data          0x0011e271        0x0 build/lib/stdlib/stdlib.o
+ .data          0x0011e271        0x0 build/lib/string/string.o
+ *fill*         0x0011e271        0x3 
+ .data          0x0011e274       0x3a build/boot.o
+                0x0011e29c                gdt_tss
+
+.got            0x0011e2b0        0x0
+ .got           0x0011e2b0        0x0 build/drivers/ata.o
+
+.got.plt        0x0011e2b0        0xc
+ .got.plt       0x0011e2b0        0xc build/drivers/ata.o
+                0x0011e2b0                _GLOBAL_OFFSET_TABLE_
+
+.igot.plt       0x0011e2bc        0x0
+ .igot.plt      0x0011e2bc        0x0 build/drivers/ata.o
+
+.data.rel.ro.local
+                0x0011e2c0      0x260
+ .data.rel.ro.local
+                0x0011e2c0       0x30 build/kernel/install.o
+ *fill*         0x0011e2f0       0x10 
+ .data.rel.ro.local
+                0x0011e300       0xe8 build/kernel/kernel.o
+ *fill*         0x0011e3e8       0x18 
+ .data.rel.ro.local
+                0x0011e400      0x120 build/kernel/shell/commands.o
+
+.data.rel.local
+                0x0011e520       0xc0
+ .data.rel.local
+                0x0011e520       0x80 build/kernel/interruption/exceptions.o
+ .data.rel.local
+                0x0011e5a0       0x40 build/kernel/shell/commands.o
+
+.bss            0x0011f000    0x1fda0
+ *(COMMON)
+ *(.bss)
+ .bss           0x0011f000        0x0 build/drivers/ata.o
+ .bss           0x0011f000        0x8 build/drivers/atapi.o
+ .bss           0x0011f008       0x18 build/drivers/keyboard.o
+                0x0011f008                keyboardScancode
+ .bss           0x0011f020       0x20 build/drivers/mouse.o
+ .bss           0x0011f040        0x0 build/drivers/pit.o
+ .bss           0x0011f040        0x0 build/drivers/rtc.o
+ .bss           0x0011f040        0x0 build/drivers/serial.o
+ .bss           0x0011f040        0x0 build/drivers/sound.o
+ .bss           0x0011f040      0x3a0 build/drivers/usb/hid.o
+ .bss           0x0011f3e0        0x0 build/drivers/usb/pci.o
+ .bss           0x0011f3e0      0x329 build/drivers/usb/xhci.o
+ .bss           0x0011f709        0x0 build/kernel/device.o
+ .bss           0x0011f709        0x0 build/kernel/elf/elf.o
+ .bss           0x0011f709        0x0 build/kernel/fs/bmp.o
+ *fill*         0x0011f709       0x17 
+ .bss           0x0011f720      0x400 build/kernel/fs/fat32.o
+ .bss           0x0011fb20      0x200 build/kernel/fs/file.o
+ .bss           0x0011fd20      0x810 build/kernel/fs/iso9660.o
+ .bss           0x00120530        0x0 build/kernel/fs/path.o
+ *fill*         0x00120530       0x10 
+ .bss           0x00120540      0x800 build/kernel/install.o
+ .bss           0x00120d40        0x0 build/kernel/interruption/exceptions.o
+ .bss           0x00120d40      0x806 build/kernel/interruption/idt.o
+ *fill*         0x00121546       0x1a 
+ .bss           0x00121560     0x1100 build/kernel/kernel.o
+                0x00121560                BG
+                0x00121561                HL
+                0x00121562                LL
+                0x00121563                theme
+                0x00121580                fsVolume
+ .bss           0x00122660        0x4 build/kernel/mm/paging.o
+                0x00122660                pageDir
+ .bss           0x00122664       0x14 build/kernel/mm/pmm.o
+ .bss           0x00122678        0x0 build/kernel/shell/commands.o
+ *fill*         0x00122678        0x8 
+ .bss           0x00122680     0x2130 build/kernel/shell/shell.o
+ .bss           0x001247b0        0x0 build/kernel/syscall.o
+ .bss           0x001247b0        0x0 build/kernel/sysinfo/sysinfo.o
+ *fill*         0x001247b0       0x10 
+ .bss           0x001247c0      0x504 build/kernel/task.o
+                0x001247c0                currentTask
+                0x001247c4                nextTask
+ *fill*         0x00124cc4       0x1c 
+ .bss           0x00124ce0       0x88 build/kernel/tss.o
+                0x00124ce0                tss_esp0
+ .bss           0x00124d68        0x0 build/kernel/user.o
+ .bss           0x00124d68        0x0 build/kernel/vex/vex.o
+ .bss           0x00124d68        0x0 build/lib/math/math.o
+ .bss           0x00124d68        0x0 build/lib/stdio/stdio.o
+ *fill*         0x00124d68       0x18 
+ .bss           0x00124d80     0x1034 build/lib/stdio/vbe.o
+                0x00124d80                gVbeInfo
+ *fill*         0x00125db4        0xc 
+ .bss           0x00125dc0    0x14fcc build/lib/stdio/vga.o
+ .bss           0x0013ad8c        0x8 build/lib/stdlib/stdlib.o
+ .bss           0x0013ad94        0x4 build/lib/string/string.o
+ *fill*         0x0013ad98        0x8 
+ .bss           0x0013ada0     0x4000 build/boot.o
+                0x0013eda0                        end = .
+                0x0013eda0                        _end = .
+                0x0013eda0                        __end = .
+LOAD build/drivers/ata.o
+LOAD build/drivers/atapi.o
+LOAD build/drivers/keyboard.o
+LOAD build/drivers/mouse.o
+LOAD build/drivers/pit.o
+LOAD build/drivers/rtc.o
+LOAD build/drivers/serial.o
+LOAD build/drivers/sound.o
+LOAD build/drivers/usb/hid.o
+LOAD build/drivers/usb/pci.o
+LOAD build/drivers/usb/xhci.o
+LOAD build/kernel/device.o
+LOAD build/kernel/elf/elf.o
+LOAD build/kernel/fs/bmp.o
+LOAD build/kernel/fs/fat32.o
+LOAD build/kernel/fs/file.o
+LOAD build/kernel/fs/iso9660.o
+LOAD build/kernel/fs/path.o
+LOAD build/kernel/install.o
+LOAD build/kernel/interruption/exceptions.o
+LOAD build/kernel/interruption/idt.o
+LOAD build/kernel/kernel.o
+LOAD build/kernel/mm/paging.o
+LOAD build/kernel/mm/pmm.o
+LOAD build/kernel/shell/commands.o
+LOAD build/kernel/shell/shell.o
+LOAD build/kernel/syscall.o
+LOAD build/kernel/sysinfo/sysinfo.o
+LOAD build/kernel/task.o
+LOAD build/kernel/tss.o
+LOAD build/kernel/user.o
+LOAD build/kernel/vex/vex.o
+LOAD build/lib/math/math.o
+LOAD build/lib/stdio/stdio.o
+LOAD build/lib/stdio/vbe.o
+LOAD build/lib/stdio/vga.o
+LOAD build/lib/stdlib/stdlib.o
+LOAD build/lib/string/string.o
+LOAD build/boot.o
+LOAD build/kernel/interruption/isr.o
+OUTPUT(kernel.bin elf32-i386)
+
+.comment        0x00000000       0x2d
+ .comment       0x00000000       0x2d build/drivers/ata.o
+                                 0x2e (size before relaxing)
+ .comment       0x0000002d       0x2e build/drivers/atapi.o
+ .comment       0x0000002d       0x2e build/drivers/keyboard.o
+ .comment       0x0000002d       0x2e build/drivers/mouse.o
+ .comment       0x0000002d       0x2e build/drivers/pit.o
+ .comment       0x0000002d       0x2e build/drivers/rtc.o
+ .comment       0x0000002d       0x2e build/drivers/serial.o
+ .comment       0x0000002d       0x2e build/drivers/sound.o
+ .comment       0x0000002d       0x2e build/drivers/usb/hid.o
+ .comment       0x0000002d       0x2e build/drivers/usb/pci.o
+ .comment       0x0000002d       0x2e build/drivers/usb/xhci.o
+ .comment       0x0000002d       0x2e build/kernel/device.o
+ .comment       0x0000002d       0x2e build/kernel/elf/elf.o
+ .comment       0x0000002d       0x2e build/kernel/fs/bmp.o
+ .comment       0x0000002d       0x2e build/kernel/fs/fat32.o
+ .comment       0x0000002d       0x2e build/kernel/fs/file.o
+ .comment       0x0000002d       0x2e build/kernel/fs/iso9660.o
+ .comment       0x0000002d       0x2e build/kernel/fs/path.o
+ .comment       0x0000002d       0x2e build/kernel/install.o
+ .comment       0x0000002d       0x2e build/kernel/interruption/exceptions.o
+ .comment       0x0000002d       0x2e build/kernel/interruption/idt.o
+ .comment       0x0000002d       0x2e build/kernel/kernel.o
+ .comment       0x0000002d       0x2e build/kernel/mm/paging.o
+ .comment       0x0000002d       0x2e build/kernel/mm/pmm.o
+ .comment       0x0000002d       0x2e build/kernel/shell/commands.o
+ .comment       0x0000002d       0x2e build/kernel/shell/shell.o
+ .comment       0x0000002d       0x2e build/kernel/syscall.o
+ .comment       0x0000002d       0x2e build/kernel/sysinfo/sysinfo.o
+ .comment       0x0000002d       0x2e build/kernel/task.o
+ .comment       0x0000002d       0x2e build/kernel/tss.o
+ .comment       0x0000002d       0x2e build/kernel/user.o
+ .comment       0x0000002d       0x2e build/kernel/vex/vex.o
+ .comment       0x0000002d       0x2e build/lib/math/math.o
+ .comment       0x0000002d       0x2e build/lib/stdio/stdio.o
+ .comment       0x0000002d       0x2e build/lib/stdio/vbe.o
+ .comment       0x0000002d       0x2e build/lib/stdio/vga.o
+ .comment       0x0000002d       0x2e build/lib/stdlib/stdlib.o
+ .comment       0x0000002d       0x2e build/lib/string/string.o
+
+.note.GNU-stack
+                0x00000000        0x0
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/ata.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/atapi.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/keyboard.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/mouse.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/pit.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/rtc.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/serial.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/sound.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/usb/hid.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/usb/pci.o
+ .note.GNU-stack
+                0x00000000        0x0 build/drivers/usb/xhci.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/device.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/elf/elf.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/fs/bmp.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/fs/fat32.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/fs/file.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/fs/iso9660.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/fs/path.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/install.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/interruption/exceptions.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/interruption/idt.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/kernel.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/mm/paging.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/mm/pmm.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/shell/commands.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/shell/shell.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/syscall.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/sysinfo/sysinfo.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/task.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/tss.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/user.o
+ .note.GNU-stack
+                0x00000000        0x0 build/kernel/vex/vex.o
+ .note.GNU-stack
+                0x00000000        0x0 build/lib/math/math.o
+ .note.GNU-stack
+                0x00000000        0x0 build/lib/stdio/stdio.o
+ .note.GNU-stack
+                0x00000000        0x0 build/lib/stdio/vbe.o
+ .note.GNU-stack
+                0x00000000        0x0 build/lib/stdio/vga.o
+ .note.GNU-stack
+                0x00000000        0x0 build/lib/stdlib/stdlib.o
+ .note.GNU-stack
+                0x00000000        0x0 build/lib/string/string.o

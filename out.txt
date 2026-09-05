@@ -1,0 +1,46 @@
+[H[J[1;1HVortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+mouse: init ok
+mouse init st=1C cb=47
+[MOUSE] Initialized
+[VBE] LFB=E0000000 VRAM=01000000 bytes
+[VBE] init ok
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[FAT32] Initialized
+[ISO] joliet root
+[ISO] joliet root
+[FONT] installed to /system/font, size=3808 bytes
+[ISO] joliet root
+[FONT] read back from disk: 3808 bytes
+[FONT] loaded into VBE: 3808 bytes
+[FONT] CJK loaded into VBE: 1440 bytes
+[FONT] uploaded to VGA planes: 3808 bytes
+[FPU] Initialized
+Enable Interrupt
+down
+down
+down
+up
+up
+up
+ok
+down
+down
+down
+ok
+down
+ok
+down
+ok

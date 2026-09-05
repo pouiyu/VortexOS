@@ -17,6 +17,7 @@
 #include "device.h"
 #include <mm/pmm.h>
 #include <mm/paging.h>
+#include <stdlib/stdlib.h>
 #include "tss.h"
 #include "syscall.h"
 #include "user.h"
@@ -26,12 +27,18 @@
 #include <usb/hid.h>
 #include <stdio/vbe.h>
 #include <fs/bmp.h>
+#include <wm/window.h>
+#include <rtc.h>
 
 uint8_t FG = COLOR_WHITE;
 uint8_t BG = COLOR_BLACK;
 uint8_t HL ;
 uint8_t LL ;
 uint8_t theme;
+
+/* 图形模式 LFB 写屏统计(用于验证拖动条带刷新是否减少写屏) */
+static uint32_t gWMWritePix = 0;
+static uint32_t gWMWriteOps = 0;
 
 // 光标样式(顶部/底部扫描线 0~15)，供菜单设置与 Shell 使用
 uint8_t cursorTop = 14;
@@ -503,24 +510,6 @@ static void handleSelect(void) {
 static BmpImage gMouseArrow;
 static bool gHasMouseArrow = false;
 
-/* 用快照缓冲 shadow 恢复 (x,y) 处 MOUSE_POINTER_W x MOUSE_POINTER_H 区域到 LFB。
- * shw 为 shadow 的一行像素数(屏幕宽度), 越界自动裁剪, 避免贴边越界写 LFB。 */
-static void blitShadowToLfb(const uint32_t* shadow, int shw, int x, int y, int w, int h) {
-    if (x < 0 || y < 0 || x >= vbeWidth || y >= vbeHeight || w <= 0 || h <= 0) return;
-    if (x + w > vbeWidth)  w = vbeWidth  - x;
-    if (y + h > vbeHeight) h = vbeHeight - y;
-    uint32_t* lfb = (uint32_t*)(uintptr_t)gVbeInfo.lfbAddr;
-    for (int yy = 0; yy < h; yy++) {
-        const uint32_t* s = &shadow[(y + yy) * shw + x];
-        uint32_t* d = &lfb[(y + yy) * vbeWidth + x];
-        for (int xx = 0; xx < w; xx++) d[xx] = s[xx];
-    }
-}
-
-/* 指针实际绘制尺寸: 有箭头位图按其尺寸, 否则用内置方块尺寸 */
-#define POINTER_RECT_W (gHasMouseArrow ? (int)gMouseArrow.w : MOUSE_POINTER_W)
-#define POINTER_RECT_H (gHasMouseArrow ? (int)gMouseArrow.h : MOUSE_POINTER_H)
-
 /* 绘制鼠标指针: 有箭头位图用之, 否则回退"白方块+黑边" */
 static void drawMousePointer(int x, int y) {
     if (gHasMouseArrow) {
@@ -540,66 +529,319 @@ static void drawMousePointer(int x, int y) {
     }
 }
 
+/* 指针矩形物理尺寸: 有箭头位图则用其宽高, 否则用内置方块尺寸 */
+static void pointerSize(int* w, int* h) {
+    if (gHasMouseArrow) { *w = (int)gMouseArrow.w; *h = (int)gMouseArrow.h; }
+    else                { *w = MOUSE_POINTER_W;   *h = MOUSE_POINTER_H;   }
+}
+
+/* 把场景快照 scene(RAM, bg+窗口 无指针)中 rect 区域拷贝回 LFB：
+ * 用于"移动指针时抹掉旧指针"——只写一个矩形而非整帧。
+ * 坐标越界自动裁剪到屏幕内。 */
+static void blitSceneRect(const uint32_t* scene, int x, int y, int w, int h) {
+    int x0 = x, y0 = y, x1 = x + w, y1 = y + h;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > vbeWidth)  x1 = vbeWidth;
+    if (y1 > vbeHeight) y1 = vbeHeight;
+    if (x0 >= x1 || y0 >= y1) return;
+    uint32_t* lfb = (uint32_t*)(uintptr_t)gVbeInfo.lfbAddr;
+    int bw = x1 - x0, bh = y1 - y0;
+    gWMWriteOps++;
+    gWMWritePix += (uint32_t)(bw * bh);
+    for (int yy = 0; yy < bh; yy++) {
+        const uint32_t* s = &scene[(y0 + yy) * vbeWidth + x0];
+        uint32_t* d = &lfb[(y0 + yy) * vbeWidth + x0];
+        for (int xx = 0; xx < bw; xx++) d[xx] = s[xx];
+    }
+}
+
+/* 整帧把场景快照写回 LFB(窗口位置/内容大范围变化时才用) */
+static void blitSceneFull(const uint32_t* scene, size_t pix) {
+    memcpy((void*)(uintptr_t)gVbeInfo.lfbAddr, scene, pix * 4);
+    gWMWriteOps++;
+    gWMWritePix += (uint32_t)pix;
+}
+
+/* 演示窗口内容回调(客户区以绝对屏幕坐标绘制) */
+static void wmTermDraw(Window* w) {
+    int cx = w->x + 8;
+    int ty = w->y + WM_TITLEBAR_H + 8;
+    vbeSetColor(vbeColor(210, 255, 210));
+    vbeDrawStringCJK(cx, ty, "VortexOS Terminal");
+    vbeSetColor(vbeColor(140, 255, 140));
+    vbeDrawStringCJK(cx, ty + 22, "> hello, window!");
+    vbeDrawStringCJK(cx, ty + 44, "> dir");
+    vbeDrawStringCJK(cx, ty + 66, "  system/  usr/  apps/");
+}
+
+static void wmAboutDraw(Window* w) {
+    int cx = w->x + 8;
+    int ty = w->y + WM_TITLEBAR_H + 8;
+    vbeSetColor(vbeColor(30, 30, 30));
+    vbeDrawStringCJK(cx, ty, "VortexOS 窗口管理器");
+    vbeDrawStringCJK(cx, ty + 22, "版本 0.1");
+    vbeDrawStringCJK(cx, ty + 44, "支持: 拖拽 / 聚焦 / 最小化 / 关闭");
+    vbeDrawStringCJK(cx, ty + 66, "按 ESC 返回文本主菜单");
+}
+
 void graphic_main(unsigned int magic, unsigned int addr) {
     (void)magic; (void)addr;
 
+    /* 静态画面构建期间关中断：构建全部走 RAM 缓冲与整帧写 LFB，保持原子。 */
+    __asm__ volatile ("cli");
+
+    serialPutStr("[G] enter\n");
+
     if (vbeSetMode(vbeWidth, vbeHeight, 32) != 0) {
+        vgaClear();
         messageBox("Can't enter graphical mode\n");
         return;
     }
-
-    vbeSetColor(vbeColor(0, 0, 0));
-    vbeClearScreen();
+    serialPutStr("[G] vbeSetMode ok\n");
 
     BmpImage wallpaper;
     bool hasWallpaper = (bmpLoad("/system/images/wallpaper.bmp", &wallpaper) == 0);
-    if (hasWallpaper)
-        vbeDrawBitmap(0, 0, wallpaper.pixels, wallpaper.w, wallpaper.h);
+    if (hasWallpaper) { serialPutStr("[G] wallpaper ok\n"); }
+    else              { serialPutStr("[G] wallpaper fail\n"); }
 
-    /* 中文显示验证：用 16x16 字库渲染一行带中英文的文本 */
-    vbeSetColor(vbeColor(0, 255, 0));
-    vbeDrawStringCJK(20, 20, "VortexOS 你好世界 中文显示");
+    BmpImage taskbar;
+    bool hasTaskbar = (bmpLoad("/system/images/taskbar.bmp", &taskbar) == 0);
+    if (hasTaskbar) { serialPutStr("[G] taskbar ok\n"); }
+    else            { serialPutStr("[G] taskbar fail\n"); }
 
     /* 加载鼠标箭头位图(仅一次, 供指针绘制复用) */
     gHasMouseArrow = (bmpLoad("/system/images/mousePointer/arrow.bmp", &gMouseArrow) == 0);
 
-    /* 建一块屏幕快照缓冲：直接快照当前 LFB(含壁纸、已绘制的中文文本等所有静态内容)，
-     * 用于恢复被指针覆盖的区域。这样指针盖过再移开时能完整还原，不会把内容擦掉。 */
-    size_t shadowPix = (size_t)vbeWidth * (size_t)vbeHeight;
-    uint32_t* shadow = (uint32_t*)pmmAllocPages((uint32_t)((shadowPix * 4 + 0xFFF) >> 12));
-    uint32_t* lfbSnapshot = (uint32_t*)(uintptr_t)gVbeInfo.lfbAddr;
-    for (size_t i = 0; i < shadowPix; i++) shadow[i] = lfbSnapshot[i];
+    /* 持久背景缓冲 bg：清黑+壁纸+任务栏+中文 的一次性渲染结果。
+     * 注意：QEMU bochs VBE 下真实 LFB 可写不可回读，直接 shadow[i]=lfb[i] 会
+     * 因读 LFB 页错误崩溃。故建立 bg(RAM) 仅作底，每帧整帧重合成到 shadow 再写 LFB。 */
+    size_t bgPix = (size_t)vbeWidth * (size_t)vbeHeight;
+    uint32_t* bg = (uint32_t*)pmmAllocPages((uint32_t)((bgPix * 4 + 0xFFF) >> 12));
+    serialPutStr("[G] bg alloc\n");
 
-    /* 初始化鼠标: 绑定到屏幕尺寸并居中 */
+    for (size_t i = 0; i < bgPix; i++) bg[i] = 0;
+    vbeBeginRamFrame(bg);
+    if (hasWallpaper)
+        vbeDrawBitmap(0, 0, wallpaper.pixels, wallpaper.w, wallpaper.h);
+    if (hasTaskbar)
+        vbeDrawBitmap(0, vbeHeight - taskbar.h, taskbar.pixels, taskbar.w, taskbar.h);
+    vbeSetColor(vbeColor(255, 255, 255));
+    vbeDrawStringCJK(20, 20, "VortexOS 操作系统");
+    vbeEndRamFrame();
+    serialPutStr("[G] bg drawn\n");
+
+    /* 释放不再组成的像素缓冲，降低内存占用 */
+    if (hasWallpaper) free(wallpaper.pixels);
+    if (hasTaskbar)   free(taskbar.pixels);
+
+    /* 初始化窗口管理器 */
+    wmInit(bg, vbeWidth, vbeHeight);
+    /* 创建后再经 wmSetBodyColor 自定义背景色, 演示"窗口背景可运行时配置"：
+     * Terminal 用深色底让浅绿文本可读, Notepad 白底, About 浅灰底。 */
+    int wTerm = wmCreate("Terminal", 60, 70, 380, 240, vbeColor(60, 60, 180), vbeColor(255, 255, 255), wmTermDraw);
+    int wNote = wmCreate("Notepad", 440, 120, 380, 260, vbeColor(40, 130, 70), vbeColor(255, 255, 255), NULL);
+    int wAbout = wmCreate("About", 200, 300, 360, 180, vbeColor(150, 95, 45), vbeColor(255, 255, 255), wmAboutDraw);
+    wmSetBodyColor(wTerm,  vbeColor(24, 24, 24));   /* 深色终端底 */
+    wmSetBodyColor(wNote,  vbeColor(255, 255, 255));/* 白色记事本底 */
+    wmSetBodyColor(wAbout, vbeColor(238, 238, 238));/* 浅灰关于底 */
+    (void)wTerm; (void)wNote; (void)wAbout;
+    serialPutStr("[WM] count=0x");
+    serialPutHex8((uint8_t)wmWindowCount());
+    serialPutStr(" windows\n");
+
+    /* 合成缓冲：每帧把 bg+可见窗口画入 shadow，再整帧写回 LFB(纯写安全) */
+    uint32_t* shadow = (uint32_t*)pmmAllocPages((uint32_t)((bgPix * 4 + 0xFFF) >> 12));
+    serialPutStr("[G] shadow alloc\n");
+    /* 拖动期间的"静止背景"缓冲：bg+除被拖窗口外所有窗口，拖动开始构建一次 */
+    uint32_t* dragBack = (uint32_t*)pmmAllocPages((uint32_t)((bgPix * 4 + 0xFFF) >> 12));
+
+    /* ---- 帧率/写屏统计 ----
+     * 用 RTC 秒作为时钟(不触碰系统 PIT，避免影响任务调度)：每累计 1 秒输出
+     * 一次平均帧率，以及该秒内 LFB 总写入像素数与 blit 次数，直观反映拖动时
+     * 的写屏开销是否减少(条带刷新 vs 整帧写)。 */
+    uint32_t gFpsFrames = 0;   /* 当前统计周期内渲染帧数 */
+    RtcTime fpsT0, fpsT1;
+    rtcGetTime(&fpsT0);
+    gWMWritePix = 0;
+    gWMWriteOps = 0;
+
+    /* 初始化鼠标: 绑定屏幕尺寸并居中 */
     mouseSetBounds(vbeWidth, vbeHeight);
     mouseSetPosition(vbeWidth / 2, vbeHeight / 2);
-    int curX = mouseGetX();
-    int curY = mouseGetY();
+    serialPutStr("[G] mouse set\n");
 
-    /* 需要接收 IRQ12, 打开中断(若之前被关闭) */
+    /* 事件驱动阶段需要接收 IRQ12/键盘，打开中断(静态构建已原子完成) */
     __asm__ volatile ("sti");
-    blitShadowToLfb(shadow, vbeWidth, curX, curY, POINTER_RECT_W, POINTER_RECT_H);
-    drawMousePointer(curX, curY);
+
+    int dragWm = -1;
+    int offx = 0, offy = 0;
+    uint8_t prevButtons = 0;
+    int nx = mouseGetX();
+    int ny = mouseGetY();
+    int lastX = nx, lastY = ny;
+    int pw = 0, ph = 0;
+    pointerSize(&pw, &ph);
+    uint32_t frameTick = 0;
+
+    /* 拖动脏矩形：记录窗口"上一帧位置"，拖动每帧只需重写 旧矩形∪新矩形 */
+    int dragPrevX = 0, dragPrevY = 0, dragPrevW = 0, dragPrevH = 0;
+
+    /* 首次渲染：合成场景(bg+窗口, 无指针)到 shadow，整帧写回 LFB，再画指针在中央 */
+    wmComposite(shadow);
+    blitSceneFull(shadow, bgPix);
+    drawMousePointer(nx, ny);
+    serialPutStr("[G] first frame drawn\n");
 
     for (;;) {
-        /* 事件驱动: 无鼠标事件时让出 CPU(hlt 等待中断) */
-        while (!mouseHasEvent())
+        /* 事件驱动: 无鼠标/键盘事件时让出 CPU(hlt 等待中断) */
+        while (!mouseHasEvent() && !keyboardHasChar())
             __asm__ volatile ("hlt");
 
-        int nx = mouseGetX();
-        int ny = mouseGetY();
+        /* 键盘: ESC 退出图形模式返回文本主菜单 */
+        if (keyboardHasChar()) {
+            char c = keyboardGetChar();
+            if (c == KEY_ESC) break;
+        }
 
-        /* 消费事件并清掉 pending 标志(绝对坐标已由中断更新) */
-        int moveDx = 0, moveDy = 0;
-        mouseGetMotion(&moveDx, &moveDy);
-        (void)moveDx; (void)moveDy;
+        /* 一轮唤醒把队列里的鼠标事件合并处理，产出最终状态；
+         * sceneDirty=true 表示窗口发生移动/关闭/最小化/聚焦，需要整帧重合成。 */
+        bool sceneDirty = false;
+        do {
+            nx = mouseGetX();
+            ny = mouseGetY();
+            uint8_t btn = mouseGetButtons();
 
-        /* 指针位置变化才重绘: 用快照恢复旧区域, 再画新指针 */
-        if (nx != curX || ny != curY) {
-            blitShadowToLfb(shadow, vbeWidth, curX, curY, POINTER_RECT_W, POINTER_RECT_H);
-            curX = nx;
-            curY = ny;
-            drawMousePointer(curX, curY);
+            /* 取出并清掉累积位移与 pending 标志(绝对坐标已由中断更新) */
+            int moveDx = 0, moveDy = 0;
+            mouseGetMotion(&moveDx, &moveDy);
+            (void)moveDx; (void)moveDy;
+
+            if (btn & MOUSE_LEFT_BUTTON) {
+                if (!(prevButtons & MOUSE_LEFT_BUTTON)) {
+                    /* 按下瞬间: 命中测试并分发 */
+                    int idx = wmHitTest(nx, ny);
+                    if (idx != -1) {
+                        int action = wmHitAction(idx, nx, ny);
+                        if (action == WM_ACT_CLOSE) {
+                            wmClose(idx);
+                            sceneDirty = true;
+                        } else if (action == WM_ACT_MINIMIZE) {
+                            wmMinimize(idx);
+                            sceneDirty = true;
+                        } else if (action == WM_ACT_DRAG) {
+                            idx = wmFocus(idx);              // 置顶聚焦, 取新索引
+                            wmGetRect(idx, &dragPrevX, &dragPrevY,
+                                      &dragPrevW, &dragPrevH); /* 记录拖动起点矩形 */
+                            offx = nx - dragPrevX;
+                            offy = ny - dragPrevY;
+                            /* 焦点置顶改变了遮挡关系, 整帧重画并写一次 LFB:
+                             * 让 LFB 立即反映置顶后的正确画面, 否则条带刷新的
+                             * "中心不变区不重写"会残留旧遮挡轮廓(残影)。 */
+                            wmComposite(shadow);
+                            blitSceneFull(shadow, bgPix);
+                            /* 构建拖动期间的"静止背景"：bg+除本窗口外所有窗口。
+                             * 拖动中窗口内容不变, 每帧只需把本窗口叠画到该 back 上。 */
+                            wmCompositeExcluding(dragBack, idx);
+                            dragWm = idx;                    // 拖动走条带刷新路径
+                        } else {
+                            wmFocus(idx);                    // 客户区: 仅聚焦
+                            sceneDirty = true;
+                        }
+                    }
+                }
+            } else if (prevButtons & MOUSE_LEFT_BUTTON) {
+                /* 松开: 结束拖拽。置 sceneDirty 让下一次渲染整帧对齐,
+                 * 避免松开前合并进同一批的位移未刷导致窗口错位。 */
+                dragWm = -1;
+                sceneDirty = true;
+            }
+
+            prevButtons = btn;
+        } while (mouseHasEvent() || keyboardHasChar());
+
+        /* 关键优化: 不在 while 内每个鼠标事件都 move 窗口。一次唤醒的多个位移
+         * 若只在循环后渲染一次, 条带刷新只覆盖首尾位置、中间扫过的区域(露出
+         * 背景/下层窗口)会漏刷 → 残影。故改为循环外只按最终鼠标位置单次移动,
+         * 让条带精确匹配「单次净位移」, 彻底消除中间漏刷。 */
+        if (dragWm != -1)
+            wmMove(dragWm, nx - offx, ny - offy);
+
+        if (dragWm != -1) {
+            /* 拖动窗口：把"静止背景"(back)拷贝到 shadow，再把被拖窗口叠画上去，
+             * 最后只重写「旧位置∪新位置」的包围盒矩形到 LFB。
+             * 采用整体包围盒而非 L 形条带：条带接缝/中间位移在少数几何下会
+             * 漏刷导致残影与错乱, 包围盒单次矩形刷新写屏略多但绝对无漏洞。 */
+            int curX, curY, curW, curH;
+            wmGetRect(dragWm, &curX, &curY, &curW, &curH);
+            /* 局部恢复旧位置区域: 只把上一帧拖窗所在矩形重置为该处的背景/下层
+             * 窗口(dragBack 内容), 而不是整帧 memcpy 全 3MB。shadow 一直维护为
+             * 完整当前场景, 故逐行拷贝窗口大小的行片段即可。 */
+            for (int rp = dragPrevY; rp < dragPrevY + dragPrevH; rp++) {
+                if (rp < 0 || rp >= vbeHeight) continue;
+                memcpy(&shadow[(size_t)rp * vbeWidth + dragPrevX],
+                       &dragBack[(size_t)rp * vbeWidth + dragPrevX],
+                       (size_t)dragPrevW * 4);
+            }
+            wmCompositeOnly(shadow, dragWm);
+            int bMinX = dragPrevX < curX ? dragPrevX : curX;
+            int bMinY = dragPrevY < curY ? dragPrevY : curY;
+            int bMaxX = (dragPrevX + dragPrevW) > (curX + curW)
+                       ? (dragPrevX + dragPrevW) : (curX + curW);
+            int bMaxY = (dragPrevY + dragPrevH) > (curY + curH)
+                       ? (dragPrevY + dragPrevH) : (curY + curH);
+            /* 半开区间右/下界不含最外一行像素, 而窗口右/下边框恰好落在
+             * 该行; 故右/下各外扩 1 像素, 保证边框线被完整重写覆盖(blitSceneRect
+             * 内部会 clamp 到屏幕, 越界来源是 shadow 的相邻场景, 无害)。 */
+            blitSceneRect(shadow, bMinX, bMinY,
+                          (bMaxX - bMinX) + 1, (bMaxY - bMinY) + 1);
+            /* 抹掉上一帧指针残留：拖动帧把 shadow 重置为 back(不含指针),
+             * 若指针落在包围盒外不会被覆盖, 显式恢复其所在矩形。 */
+            blitSceneRect(shadow, lastX, lastY, pw, ph);
+            drawMousePointer(nx, ny);
+            dragPrevX = curX;
+            dragPrevY = curY;
+            dragPrevW = curW;
+            dragPrevH = curH;
+            lastX = nx;
+            lastY = ny;
+        } else if (sceneDirty) {
+            /* 关闭/最小化/聚焦(非拖动)：重合成整个场景，整帧写 LFB，再画指针 */
+            wmComposite(shadow);
+            blitSceneFull(shadow, bgPix);
+            drawMousePointer(nx, ny);
+        } else if (nx != lastX || ny != lastY) {
+            /* 仅指针移动：从场景快照抹掉"旧指针"矩形，再画新指针。
+             * 只写两个小矩形，避免整帧 3MB 写屏(这是 QEMU 卡顿主因)。 */
+            blitSceneRect(shadow, lastX, lastY, pw, ph);
+            drawMousePointer(nx, ny);
+            lastX = nx;
+            lastY = ny;
+        }
+
+        /* 帧率/写屏统计：每帧记 1, 每秒用 RTC 秒差输出一次。
+         * 仅当该秒确实发生了 LFB 写入才打印, 空闲时不刷屏。 */
+        gFpsFrames++;
+        rtcGetTime(&fpsT1);
+        if (fpsT1.second != fpsT0.second) {
+            if (gWMWriteOps > 0) {
+                serialPutStr("[FPS] ");
+                serialPutDec32(gFpsFrames);
+                serialPutStr("fps pix=");
+                serialPutDec32(gWMWritePix);
+                serialPutStr(" ops=");
+                serialPutDec32(gWMWriteOps);
+                serialPutStr("\n");
+            }
+            gFpsFrames = 0;
+            gWMWritePix = 0;
+            gWMWriteOps = 0;
+            fpsT0 = fpsT1;
+        }
+
+        /* 节流心跳: 每 500 帧打印一次, 证明事件循环在持续运转 */
+        if ((++frameTick % 500) == 0) {
+            serialPutStr("[G] tick\n");
         }
     }
 }
@@ -702,6 +944,8 @@ void kernel_main(unsigned int magic, unsigned int addr) {
         serialPutStr("[INSTALL] Running from CD-ROM this round\n");
         vgaPutStr("[INSTALL] Running from CD-ROM this round\n");
         loadFontFromCdIntoVbe();
+        /* 文本模式(Shell/菜单)字体同样从光驱上传到 VGA 字模平面 */
+        loadFontFromCdIntoVga();
     } else { /* INST_RESULT_BOOT */
         /* 每次开机都从光驱刷新硬盘字体，避免旧/残缺字体残留导致图形文字乱码。
          * loadFontFromCd() 会无条件覆写 /system/font/font.bin；CD 读取失败则不更动。 */
@@ -713,6 +957,8 @@ void kernel_main(unsigned int magic, unsigned int addr) {
         loadFontIntoVbe();
         /* 中文 16x16 字库也注册给 VBE，供 vbeDrawStringCJK 渲染 */
         loadCjkFontIntoVbe();
+        /* 文本模式(Shell/菜单)字体：上传到 VGA 字模平面 */
+        loadFontIntoVga();
     }
     
     __asm__ volatile ("fninit");  // 初始化 FPU

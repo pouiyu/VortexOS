@@ -344,6 +344,54 @@ void loadCjkFontIntoVbe(void) {
     instLogLine(" bytes");
 }
 
+/* 把 font.bin 记录(17字节/条: 码 + 16 行)展开成 256×16 连续字形表并上传 VGA
+ * 字模平面，使文本模式(Shell/菜单)也显示同一字体。0x00~0x1F 控制符无记录，
+ * 保持空白字形。必须在进入 VBE 图形模式之前调用。 */
+static void uploadFontRecordsToVga(const uint8_t* recs, uint32_t size) {
+    uint8_t table[256 * 16];
+    memset(table, 0, sizeof(table));
+    for (uint32_t i = 0; i + 17 <= size && i + 17 <= 256 * 17; i += 17) {
+        uint8_t code = recs[i];
+        memcpy(&table[(size_t)code * 16], &recs[i + 1], 16);
+    }
+    vgaLoadFont(table);
+}
+
+/* 把硬盘上的 font.bin 上传到 VGA 字模平面 */
+void loadFontIntoVga(void) {
+    if (!fsVolume.valid) return;
+
+    FileHandle f;
+    if (!fsOpen(&f, DISK_FONT_PATH)) return;
+    if (f.size <= 0 || f.size > 256 * 17) { fsClose(&f); return; }
+
+    uint8_t* buf = malloc(f.size);
+    if (!buf) { fsClose(&f); return; }
+    int got = fsRead(&f, buf, f.size);
+    fsClose(&f);
+
+    if (got > 0) {
+        uploadFontRecordsToVga(buf, (uint32_t)got);
+        instLog("[FONT] uploaded to VGA planes: ");
+        putDec32((uint32_t)got);
+        instLogLine(" bytes");
+    }
+    free(buf);
+}
+
+/* “从 CD 运行本轮”：字体直接读自光驱上传到 VGA 字模平面 */
+void loadFontFromCdIntoVga(void) {
+    uint32_t size = 0;
+    uint8_t* data = readCdFile(CD_FONT_PATH, &size);
+    if (data) {
+        if (size > 0 && size <= 256 * 17) {
+            uploadFontRecordsToVga(data, size);
+            instLog("[FONT] uploaded to VGA from CD\n");
+        }
+        free(data);
+    }
+}
+
 /* ==================== 文本模式安装向导 ==================== */
 
 static void instClear(void);

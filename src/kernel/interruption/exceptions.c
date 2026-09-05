@@ -1,5 +1,6 @@
 #include "exceptions.h"
 #include <stdio/vga.h>
+#include <serial.h>
 
 static const char* exceptionNames[32] = {
     "Divide by Zero",
@@ -31,6 +32,24 @@ static const char* exceptionNames[32] = {
 };
 
 static void panic(ExceptionFrame* frame) {
+    /* 图形模式下 vga 文本显存不显示：也打串口，便于定位崩溃点 */
+    uint32_t cr2 = 0;
+    __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+    serialPutStr("\r\n<<< EXCEPTION >>> int=");
+    serialPutHex32(frame->intNum);
+    serialPutStr(" name=");
+    if (frame->intNum < 32) serialPutStr(exceptionNames[frame->intNum]);
+    else { serialPutStr("IRQ/"); }
+    serialPutStr("  cr2=0x");
+    serialPutHex32(cr2);
+    serialPutStr("  err=0x");
+    serialPutHex32(frame->errCode);
+    serialPutStr("  eip=0x");
+    serialPutHex32(frame->eip);
+    serialPutStr("  esp=0x");
+    serialPutHex32(frame->esp);
+    serialPutStr("\r\n");
+
     vgaSetColor(COLOR_WHITE, COLOR_RED);
     vgaClear();
 

@@ -57,4 +57,10 @@ void loadCjkFontIntoVbe(void);
 /* “从 CD 运行本轮”：不写盘，字体直接读自光驱并加载进 VBE */
 void loadFontFromCdIntoVbe(void);
 
+/* 把硬盘上的 font.bin 上传到 VGA 字模平面（文本模式 Shell/菜单字体） */
+void loadFontIntoVga(void);
+
+/* “从 CD 运行本轮”：字体直接读自光驱上传到 VGA 字模平面 */
+void loadFontFromCdIntoVga(void);
+
 #endif

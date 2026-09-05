@@ -74,6 +74,12 @@ void vbeLoadCjkFont(const uint8_t* data, uint32_t size);
  * 使用当前绘制色。 */
 void vbeDrawStringCJK(uint16_t x, uint16_t y, const char* str);
 
+/* 渲染目标重定向：在 vbeBeginRamFrame(buffer) 与 vbeEndRamFrame() 之间，
+ * 所有绘图/文本函数写入 buffer（与 LFB 同构的 32bpp RAM 缓冲）而非真实 LFB。
+ * 用于把当前绘制画面渲染到内存快照，避免回读真实帧缓冲。 */
+void vbeBeginRamFrame(uint32_t* buffer);
+void vbeEndRamFrame(void);
+
 static inline uint32_t vbeColor(uint8_t r, uint8_t g, uint8_t b) {
     // 最常见的是 0x00RRGGBB
     return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;

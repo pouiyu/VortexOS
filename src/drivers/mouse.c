@@ -189,8 +189,10 @@ void mouseIRQHandler(void) {
             mouseButtons = (b0 & 0x07);       // bit0~2: 左/右/中
             mouseDX += dx;
             mouseDY -= dy;                    // Y 方向按实测取反, 使光标与操作方向一致
-            mouseAbsX += mouseDX;
-            mouseAbsY += mouseDY;
+            /* 直接用本包增量更新光标绝对位置(而非累积总值), 保证移动速度与
+             * 硬件位移一一对应、恒定；累积值另存 mouseDX/DY 供读取方一次性取走 */
+            mouseAbsX += dx;
+            mouseAbsY += -dy;
 
             if (mouseAbsX < 0) mouseAbsX = 0;
             if (mouseAbsY < 0) mouseAbsY = 0;

@@ -92,6 +92,32 @@ int vgaScrollViewActive(void) {
     return scrollViewOffset != 0;
 }
 
+/* 把 256×16 的 8x16 点阵字库上传到 VGA 字模平面(plane 2)。
+ * 时序见 OSDev "VGA Fonts / Get from VGA RAM directly"（读写同构，方向互换）：
+ * 1) GC 模式寄存器 关奇偶寻址 + GC Misc 关 chain-4 并把窗口映射到 0xA0000；
+ * 2) 序发生器 映射掩码 = 0x04（只写 plane 2 字模），内存模式关奇偶；
+ * 3) 每字符占 32 字节槽位：前 16 字节为 8x16 扫描线，后 16 字节为 8x32 预留(置零)；
+ * 4) 写毕恢复各寄存器(掩码回 plane0/1 字符+属性、重开奇偶与 chain-4)。
+ * 必须在文本模式、进入 VBE 图形模式之前调用。 */
+void vgaLoadFont(const uint8_t* glyphs) {
+    outb(0x3CE, 0x05); outb(0x3CF, 0x00);   /* GC 模式: 写0读0, 关奇偶 */
+    outb(0x3CE, 0x06); outb(0x3CF, 0x04);   /* GC Misc: 关 chain-4, 映射 A0000 */
+    outb(0x3C4, 0x02); outb(0x3C5, 0x04);   /* 序发生器: 映射掩码 = plane 2(字模) */
+    outb(0x3C4, 0x04); outb(0x3C5, 0x06);   /* 序发生器: 内存模式, 关奇偶 */
+
+    uint8_t* vga = (uint8_t*)VGA_FONT_MEMORY;
+    for (uint16_t i = 0; i < 256; i++) {
+        uint8_t* slot = &vga[(size_t)i * 32];
+        for (uint8_t j = 0; j < 32; j++) slot[j] = 0;             /* 清 32 字节槽 */
+        for (uint8_t j = 0; j < 16; j++) slot[j] = glyphs[(size_t)i * 16 + j];
+    }
+
+    outb(0x3C4, 0x02); outb(0x3C5, 0x03);   /* 掩码回 plane0,1(字符+属性) */
+    outb(0x3C4, 0x04); outb(0x3C5, 0x02);   /* 内存模式: 重开奇偶 */
+    outb(0x3CE, 0x05); outb(0x3CF, 0x10);   /* GC 模式: 写0读0, 开奇偶 */
+    outb(0x3CE, 0x06); outb(0x3CF, 0x0E);   /* GC Misc: 重开 chain-4, 映射 A0000 */
+}
+
 void vgaInit(void) {
     currentColor = vgaEntryColor(COLOR_LIGHT_GREY, COLOR_BLACK);
     vgaClear();

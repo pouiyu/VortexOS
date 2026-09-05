@@ -80,10 +80,15 @@ void free(void* ptr) {
     block->free = 1;
     usedMemory -= block->size;
 
-    // 合并相邻空闲块
+    // 合并相邻空闲块：仅当链表上的下一个块与当前块在物理内存上真正相邻时
+    // 才合并。heapGrow 会把各自独立申请的物理页(不同 run)以链表首尾相连，
+    // 仅靠 next 指针判定“相邻”会误把间隙不同的两段物理内存算成一块，导致
+    // 块 size 被虚增、后续 malloc 返回的缓冲区超出其物理页范围、写入越界
+    // (曾覆盖到 LFB 页表页 0x444000 造成页错误)。故要做字节级相邻校验。
     Block* current = heapStart;
     while (current) {
-        if (current->free && current->next && current->next->free) {
+        if (current->free && current->next && current->next->free &&
+            (uint8_t*)current + sizeof(Block) + current->size == (uint8_t*)current->next) {
             current->size += sizeof(Block) + current->next->size;
             current->next = current->next->next;
         }

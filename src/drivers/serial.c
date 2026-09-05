@@ -39,3 +39,11 @@ void serialPutHex32(uint32_t value) {
     serialPutHex16((value >> 16) & 0xFFFF);
     serialPutHex16(value & 0xFFFF);
 }
+
+/* 十进制无符号 32 位输出(无前导零), 用于打印帧率/写屏像素等计数值 */
+void serialPutDec32(uint32_t value) {
+    char tmp[11];
+    int  i = 0;
+    do { tmp[i++] = (char)('0' + value % 10); value /= 10; } while (value);
+    while (i) serialPutChar(tmp[--i]);
+}

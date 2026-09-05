@@ -37,6 +37,22 @@ static uint32_t   sCjkCapacity = 0;     /* 已分配字节数 */
  * 所有绘图/文本函数均使用该颜色。32bpp 为 0x00RRGGBB。 */
 static uint32_t sColor = 0x00FFFFFF;  /* 默认白色 */
 
+/* 渲染目标重定向：非空时所有绘图函数写入该 RAM 缓冲(同 LFB 的 32bpp 布局)，
+ * 为空时写入真实线性帧缓冲。用于“建一块不受 LFB 可读性影响的全量快照”。 */
+static uint32_t* sTarget = NULL;
+
+void vbeBeginRamFrame(uint32_t* buffer) {
+    sTarget = buffer;
+}
+
+void vbeEndRamFrame(void) {
+    sTarget = NULL;
+}
+
+static uint32_t* vbeFb(void) {
+    return sTarget ? sTarget : (uint32_t*)gVbeInfo.lfbAddr;
+}
+
 /* ===== 颜色状态 ===== */
 void vbeSetColor(uint32_t color) { sColor = color; }
 uint32_t vbeGetColor(void) { return sColor; }
@@ -288,6 +304,12 @@ int vbeSetMode(uint16_t xres, uint16_t yres, uint16_t bpp) {
     gVbeInfo.bpp  = vbeRead(VBE_DISPI_BPP);
     gVbeInfo.enabled = 1;
 
+    /* vramSize 可能被 vbeSyncInfo() 用不可靠的 dispi MEM64K 值覆盖成过小值
+     * (QEMU 下会从 16MB 缩成 288KB)，导致 vbeMapLfb 只映射前小段帧缓冲，
+     * 超出部分写入即页错误。这里保证至少映射当前模式所需大小。 */
+    uint32_t need = (uint32_t)xres * yres * (bpp / 8u);
+    if (gVbeInfo.vramSize < need) gVbeInfo.vramSize = need;
+
     vbeMapLfb();
     return 0;
 }
@@ -310,15 +332,25 @@ void vbeClearScreen(void) {
 void vbeDrawPixel(uint32_t x, uint32_t y) {
     if (!gVbeInfo.enabled || gVbeInfo.bpp != 32) return;
     if (x >= gVbeInfo.xres || y >= gVbeInfo.yres) return;
-    ((uint32_t*)gVbeInfo.lfbAddr)[y * gVbeInfo.xres + x] = sColor;
+    vbeFb()[y * gVbeInfo.xres + x] = sColor;
 }
 
 /* 用当前绘制色填充矩形 */
 void vbeDrawFillRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
-    for (uint32_t y = y; y < y + h && y < gVbeInfo.yres; y++) {
-        for (uint32_t x = x; x < x + w && x < gVbeInfo.xres; x++) {
-            vbeDrawPixel(x, y);
-        }
+    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32) return;
+    uint32_t* fb = vbeFb();
+
+    /* 裁剪到帧缓冲范围，避免越界写 */
+    uint32_t xend = x + w;
+    uint32_t yend = y + h;
+    if (xend > gVbeInfo.xres) xend = gVbeInfo.xres;
+    if (yend > gVbeInfo.yres) yend = gVbeInfo.yres;
+    if (x >= xend || y >= yend) return;
+
+    for (uint32_t yy = y; yy < yend; yy++) {
+        uint32_t* row = &fb[yy * gVbeInfo.xres + x];
+        for (uint32_t xx = x; xx < xend; xx++)
+            row[xx - x] = sColor;
     }
 }
 
@@ -335,7 +367,7 @@ void vbeDrawLineRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
 void vbeDrawBitmap(uint32_t x, uint32_t y, const uint8_t* bgra, uint32_t w, uint32_t h) {
     if (!gVbeInfo.enabled || gVbeInfo.bpp != 32 || !bgra) return;
 
-    uint32_t* fb = (uint32_t*)gVbeInfo.lfbAddr;
+    uint32_t* fb = vbeFb();
     for (uint32_t row = 0; row < h; row++) {
         uint32_t yy = y + row;
         if (yy >= gVbeInfo.yres) break;
@@ -516,7 +548,7 @@ uint16_t vbeDrawChar(uint16_t x, uint16_t y, char c) {
         for (uint8_t i = 8; i < 16; i++) rows[i] = 0;
     }
 
-    uint32_t* fb = (uint32_t*)gVbeInfo.lfbAddr;
+    uint32_t* fb = vbeFb();
     for (uint8_t row = 0; row < charH; row++) {
         uint8_t  bits = rows[row];
         uint16_t yy   = y + row;
@@ -618,14 +650,15 @@ static uint32_t utf8Decode(const uint8_t* s, uint32_t len) {
 
 /* 在 (x,y) 用当前绘制色渲染单个全宽汉字，字形为内嵌 16 字节*2 的 16x16 点阵。
  * 返回该字符的横向步进(16 像素)。
- * 字形在 16x16 内垂直居中，而 8x16 ASCII 字形贴近顶部行；为与 ASCII 顶部视觉对齐，
- * 把整幅字形向上偏移 CJK_GLYPH_UPDAWN(2) 像素绘制(内容不丢弃)，顶部越界的行自动裁剪。 */
-#define CJK_GLYPH_UPDAWN 2
+ * Unifont 的汉字字形为满格 16×16(内容占满 0..15 行)，与 ASCII 的 8×16 同一
+ * 网格坐标系、顶部对齐，故无需偏移(UPDAWN=0)。改换其它字库(内容非顶格)时
+ * 再用该宏把整幅字形整体上移对齐，顶部越界的行自动裁剪、内容不丢弃。 */
+#define CJK_GLYPH_UPDAWN 0
 
 static uint16_t vbeDrawCjkGlyph(uint16_t x, uint16_t y, const uint8_t* glyph) {
     if (!gVbeInfo.enabled || gVbeInfo.bpp != 32 || !glyph) return 16;
 
-    uint32_t* fb = (uint32_t*)gVbeInfo.lfbAddr;
+    uint32_t* fb = vbeFb();
     for (uint16_t row = 0; row < 16; row++) {
         /* 整幅字形上移 CJK_GLYPH_UPDAWN 像素；顶部越界的行(负数)跳过 */
         int yy = (int)y + row - CJK_GLYPH_UPDAWN;

@@ -9,5 +9,6 @@ void serialPutStr(const char* str);
 void serialPutHex8(uint8_t value);
 void serialPutHex16(uint16_t value);
 void serialPutHex32(uint32_t value);
+void serialPutDec32(uint32_t value);
 
 #endif
