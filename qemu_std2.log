@@ -1,0 +1,24 @@
+[H[J[1;1Herror: can't find command `['.
+error: no server is specified.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+error: you need to load the kernel first.
+[H[J[1;1H[2;30HGNU GRUB  version 2.12
+
+[?25h   Minimal BASH-like line editing is supported. For the first word, TAB   
+   lists possible command completions. Anywhere else TAB lists possible   
+   device or file completions. To enable less(1)-like paging, "set        
+   pager=1".                                                              
+
+
+grub> 

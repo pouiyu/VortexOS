@@ -1,0 +1,68 @@
+[H[J[1;1HVortexOS
+[MB2] fb tag type=02 addr=000B8000
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 0
+[FAT32] Init failed
+
+[WIZARD] VortexOS Installer
+  Hard disk is not formatted.
+  
+  Format the disk and install
+  VortexOS to it?
+
+[WIZARD] VortexOS Installer
+  Hard disk is not formatted.
+  
+  Run VortexOS from the CD-ROM
+  (no changes to the disk)?
+[INSTALL] Running from CD-ROM this round
+[ISO] joliet root
+[ISO] joliet root
+[ISO] joliet root
+[FONT] uploaded to VGA from CD
+[FPU] Initialized
+Enable Interrupt
+[G] enter
+[MB2] fb tag type=02 addr=000B8000
+[VBE] LFB=FD000000 VRAM=01000000 bytes
+[G] vbeSetMode ok
+mouse: init ok
+mouse init st=1C cb=43
+[G] wallpaper ok
+[G] taskbar ok
+[G] bg alloc
+[G] bg drawn
+[G] shadow alloc
+[G] mouse set
+[G] first frame drawn
+[G] loading prog
+[G] jump to prog
+[WM] window created
