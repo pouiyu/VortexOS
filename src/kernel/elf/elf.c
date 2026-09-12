@@ -7,11 +7,12 @@
 #include <stdlib/stdlib.h>
 #include <stdio/vga.h>
 
-bool elfLoadAndRun(const char* filename) {
+/* 加载 ELF 到内存(身份映射：段直接写入其 vaddr)，返回入口地址；失败返回 0。 */
+uint32_t elfLoad(const char* filename) {
     FileHandle file;
     if (!fsOpen(&file, filename)) {
         vgaPutStr("ELF: open failed\n");
-        return false;
+        return 0;
     }
 
     // 读取 ELF 头
@@ -19,7 +20,7 @@ bool elfLoadAndRun(const char* filename) {
     if (fsRead(&file, &header, sizeof(header)) != sizeof(header)) {
         vgaPutStr("ELF: header read failed\n");
         fsClose(&file);
-        return false;
+        return 0;
     }
 
     // 检查魔数
@@ -27,14 +28,14 @@ bool elfLoadAndRun(const char* filename) {
         header.ident[2] != 'L'  || header.ident[3] != 'F') {
         vgaPutStr("ELF: bad magic\n");
         fsClose(&file);
-        return false;
+        return 0;
     }
 
     // 检查架构与类型
     if (header.machine != ELF_EM_386 || header.type != ELF_ET_EXEC) {
         vgaPutStr("ELF: unsupported arch/type\n");
         fsClose(&file);
-        return false;
+        return 0;
     }
 
     // 读取程序头表
@@ -45,7 +46,7 @@ bool elfLoadAndRun(const char* filename) {
     if (phnum == 0 || phentsize != sizeof(Elf32ProgramHeader)) {
         vgaPutStr("ELF: invalid phdr\n");
         fsClose(&file);
-        return false;
+        return 0;
     }
 
     // 分配程序头缓冲区
@@ -53,7 +54,7 @@ bool elfLoadAndRun(const char* filename) {
     if (!phdrs) {
         vgaPutStr("ELF: no memory for phdrs\n");
         fsClose(&file);
-        return false;
+        return 0;
     }
 
     // 移动文件指针到程序头（fsRead 当前位于 header 之后）
@@ -71,7 +72,7 @@ bool elfLoadAndRun(const char* filename) {
         vgaPutStr("ELF: phdr read failed\n");
         free(phdrs);
         fsClose(&file);
-        return false;
+        return 0;
     }
 
     // 遍历加载段
@@ -87,7 +88,7 @@ bool elfLoadAndRun(const char* filename) {
             vgaPutStr("ELF: invalid segment sizes\n");
             free(phdrs);
             fsClose(&file);
-            return false;
+            return 0;
         }
 
         // 确保段所在页已映射（身份映射下无需额外操作，但需写入）
@@ -100,7 +101,7 @@ bool elfLoadAndRun(const char* filename) {
             vgaPutStr("ELF: reopen failed\n");
             free(phdrs);
             fsClose(&file);
-            return false;
+            return 0;
         }
 
         // 跳过 offset 字节
@@ -131,17 +132,22 @@ bool elfLoadAndRun(const char* filename) {
     // 入口点
     uint32_t entry = header.entry;
 
+    free(phdrs);
+    fsClose(&file);
+    return entry;
+}
+
+bool elfLoadAndRun(const char* filename) {
+    uint32_t entry = elfLoad(filename);
+    if (!entry) return false;
+
     // 创建用户任务
     Task* task = taskCreateUser((void (*)(void))entry, 4096, 1);
     if (!task) {
         vgaPutStr("ELF: task create failed\n");
-        free(phdrs);
-        fsClose(&file);
         return false;
     }
 
     vgaPutStr("ELF: loaded successfully\n");
-    free(phdrs);
-    fsClose(&file);
     return true;
 }

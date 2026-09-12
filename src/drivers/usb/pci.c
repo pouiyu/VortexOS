@@ -36,8 +36,8 @@ void pciWrite32(const pciDevice* dev, uint8_t offset, uint32_t value) {
     outl(PCI_CONFIG_DATA, value);
 }
 
-/* 计算 BARx 的内存区域大小（写入全 1 再读回） */
-static uint32_t pciGetBarSize(const pciDevice* dev, uint8_t barOffset) {
+/* 计算 BARx 的内存区域大小（写入全 1 再读回），导出供 AHCI 等读 BAR5 */
+uint32_t pciGetBarSize(const pciDevice* dev, uint8_t barOffset) {
     uint32_t old = pciRead32(dev, barOffset);
     pciWrite32(dev, barOffset, 0xFFFFFFFF);
     uint32_t size = pciRead32(dev, barOffset);
@@ -46,6 +46,13 @@ static uint32_t pciGetBarSize(const pciDevice* dev, uint8_t barOffset) {
     size &= ~0xF;
     size = ~size + 1;
     return size;
+}
+
+/* 读指定 BAR(内存类型)的基地址（32 位内存 BAR），返回 0 表示不支持/IO BAR */
+uint32_t pciReadBar32(const pciDevice* dev, uint8_t barOffset) {
+    uint32_t bar = pciRead32(dev, barOffset);
+    if (bar & 0x01) return 0;                /* IO BAR，不适用 */
+    return bar & ~0xF;                       /* 屏蔽类型/预取/地址低位 */
 }
 
 void pciScan(void) {
@@ -125,6 +132,12 @@ static int pciScanBus(pciDevice* dev, uint8_t wantClass, uint8_t wantSubclass,
 
 int pciFindController(pciDevice* dev, uint8_t subclass, uint8_t progIf) {
     return pciScanBus(dev, PCI_CLASS_SERIAL_BUS, subclass, progIf, false);
+}
+
+/* 查找 Mass Storage(0x01)类设备；subclass/progIf 传 0x01/0x01 定位 AHCI */
+int pciFindMassStorage(pciDevice* dev, uint8_t subclass, uint8_t progIf) {
+    return pciScanBus(dev, PCI_CLASS_MASS_STORAGE, subclass, progIf,
+                      (subclass == 0xFF && progIf == 0xFF));
 }
 
 int pciFindClass(pciDevice* dev, uint8_t baseClass) {

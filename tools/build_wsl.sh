@@ -11,8 +11,12 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
-MODS='serial terminal normal boot multiboot2 configfile'
-GRUB_MODS='biosdisk iso9660 part_msdos fat configfile search_fs_uuid search normal boot multiboot2 serial terminal'
+# 进入图形模式依赖 GRUB 提供线性帧缓冲(gfxmode/gfxpayload=keep)：
+# 必须把 vbe/vga 模块打进核心，否则 insmod vbe/vga 报 not found、
+# gfxpayload 失效，真机/VMware 无 Bochs dispi 端口导致图形模式卡黑屏。
+# 因此 CD(eltorito) 与硬盘(memdisk) 两套核心都要带上 vbe vga。
+MODS='serial terminal normal boot multiboot2 configfile vbe vga'
+GRUB_MODS='biosdisk iso9660 part_msdos fat configfile search_fs_uuid search normal boot multiboot2 serial terminal vbe vga'
 
 echo "[0/5] WSL 内编译内核"
 make kernel.bin

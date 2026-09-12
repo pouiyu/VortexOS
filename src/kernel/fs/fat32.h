@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <disk.h>
 
 #define SECTOR_SIZE      512
 #define FAT32_CLUSTER_END  0x0FFFFFF8
@@ -68,6 +69,7 @@ typedef struct {
 
 typedef struct {
     bool valid;                  // FAT32 是否初始化成功
+    const dDrive* drive;         // 所属磁盘(经 disk 抽象层读写)
     uint16_t bytesPerSector;     // 每扇区字节数（通常 512）
     uint8_t  sectorsPerCluster;  // 每簇扇区数（如 8）
     uint32_t sectorsPerFat;      // FAT 表占用扇区数
@@ -91,10 +93,12 @@ typedef struct {
     uint16_t name3[2];     // 2 个 UTF-16 字符
 } __attribute__((packed)) fat32LfnEntry;
 
-bool fat32Init(fat32Volume* vol);
+bool fat32Init(fat32Volume* vol, const dDrive* drv);
 
-/* 把整块磁盘格式化为固定 64MB 的 FAT32(用于安装系统)；成功返回 true 并填充 vol 字段 */
-bool fat32Format(fat32Volume* vol);
+/* 把选中磁盘上的目标分区格式化为 FAT32(用于安装系统)；成功返回 true 并填充 vol 字段。
+   partStartLba/partNumSecs 为分区起始/大小的整盘绝对 LBA。 */
+bool fat32Format(fat32Volume* vol, const dDrive* drv,
+                 uint32_t partStartLba, uint32_t partNumSecs);
 
 /* 递归创建路径中的所有目录(不存在则建) */
 bool fat32MkDirs(fat32Volume* vol, const char* dirPath);

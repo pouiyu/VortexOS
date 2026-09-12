@@ -10,6 +10,15 @@
 
 #define PCI_CLASS_DISPLAY        0x03   /* Display Controller */
 
+/* Mass Storage Controller（供磁盘/存储枚举） */
+#define PCI_CLASS_MASS_STORAGE   0x01
+#define PCI_SUBCLASS_IDE         0x01   /* PIO/legacy IDE */
+#define PCI_SUBCLASS_SATA        0x06   /* SATA(AHCI) */
+#define PCI_SUBCLASS_SCSI        0x00   /* SCSI */
+#define PCI_PROGIF_AHCI          0x01   /* SATA HBA 使用 AHCI 接口 */
+
+#define PCI_BAR5_OFFSET          0x24   /* BAR5 配置偏移（AHCI ABAR） */
+
 typedef struct {
     uint8_t  bus;
     uint8_t  device;
@@ -37,5 +46,12 @@ int pciFindController(pciDevice* dev, uint8_t subclass, uint8_t progIf);
 
 /* 探测总线 0；查找指定基础类(如显卡 0x03)设备，成功返回 0，填充 dev->bar0Addr(帧缓冲) */
 int pciFindClass(pciDevice* dev, uint8_t baseClass);
+
+/* 磁盘/存储专用：查找 Mass Storage(0x01)类设备（subclass 可 0xFF 任意、progIf 可 0xFF） */
+int pciFindMassStorage(pciDevice* dev, uint8_t subclass, uint8_t progIf);
+
+/* 通用 BAR 读取与尺寸：AHCI 用 offset=PCI_BAR5_OFFSET 取 ABAR */
+uint32_t pciReadBar32(const pciDevice* dev, uint8_t barOffset);
+uint32_t pciGetBarSize(const pciDevice* dev, uint8_t barOffset);
 
 #endif

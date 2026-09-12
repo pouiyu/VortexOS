@@ -96,6 +96,13 @@ void vgaScrollView(int delta);       /* +1 向上看更早内容，-1 向下回�
 void vgaScrollViewReset(void);       /* 强制恢复实时视图 */
 int  vgaScrollViewActive(void);      /* 当前是否处于滚动视图 */
 
+/* 文本输出后端切换：
+ *   enable=true  改用引导器帧缓冲(GRUB)显示文本。此时 VGA 文本平面不接显示器，
+ *                该函数让后续 vga* 输出差异刷到这个帧缓冲上(设色/字形由 vbe 完成)。
+ *   enable=false 恢复 VGA 文本平面直写(置 0 显存)。 */
+void vgaSetFramebufferOutput(bool enable);
+void vgaOutputFlush(void);             /* 把 80x25 文本模型差异写到当前后端 */
+
 /* 把 256×16 的 8x16 点阵字库(每字符 16 字节扫描线，glyphs[code*16..+15])
  * 上传到 VGA 字模平面，使文本模式(Shell/菜单)显示该字体。
  * 必须在文本模式(进入 VBE 图形模式之前)调用。 */

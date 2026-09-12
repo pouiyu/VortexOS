@@ -22,6 +22,7 @@
 typedef struct {
     uint32_t lfbAddr;   /* 线性帧缓冲物理地址 */
     uint32_t vramSize;  /* 显存大小(字节) */
+    uint32_t pitch;     /* 每行字节数；0 表示与 xres*4 一致 */
     uint16_t xres;      /* 当前逻辑宽度 */
     uint16_t yres;      /* 当前逻辑高度 */
     uint16_t bpp;       /* 当前色深 */
@@ -33,6 +34,16 @@ bool vbeReady(void);                      /* 是否已初始化 */
 void vbeSyncInfo(void);                   /* 回填显存与当前模式到 gVbeInfo */
 int  vbeSetMode(uint16_t xres, uint16_t yres, uint16_t bpp); /* 进入图形模式 */
 void vbeDisable(void);                    /* 关闭图形(LFB)模式，返回文本模式 */
+
+/* 使用引导器(GRUB)经 Multiboot2 framebuffer tag 提供、已就绪的帧缓冲，
+ * 绕过 QEMU/Bochs 专有 dispi 端口(实机显卡无该端口)。pitch 为每行字节数。 */
+int  vbeUseBootloaderFramebuffer(uint32_t fbAddr, uint32_t pitch,
+                                 uint32_t xres, uint32_t yres, uint32_t bpp);
+
+/* 帧缓冲低级文本输出(bpp 无关)：不依赖 32bpp 门禁，直接按 gVbeInfo 的
+ * bpp/pitch 写像素，供引导器帧缓冲模式下渲染 80x25 控制台。 */
+void vbeFbFillRect(int x, int y, int w, int h, uint32_t rgb);
+void vbeFbTextCell(int x, int y, uint8_t ch, uint32_t fg, uint32_t bg);
 
 /* 颜色状态：图形模式没有前景/背景色之分，先 vbeSetColor 设置当前绘制色，
  * 之后所有绘图/文本函数均使用该颜色。32bpp 颜色为 0x00RRGGBB。 */
@@ -79,6 +90,13 @@ void vbeDrawStringCJK(uint16_t x, uint16_t y, const char* str);
  * 用于把当前绘制画面渲染到内存快照，避免回读真实帧缓冲。 */
 void vbeBeginRamFrame(uint32_t* buffer);
 void vbeEndRamFrame(void);
+
+/* 渲染到"窗口客户区 surface"：buffer 是窗口客户区的 RAM 像素缓冲，行宽为
+ * stride(像素)，对应屏幕上的 (x, y) 起、宽 w 高 h 的客户区矩形。
+ * 绘制坐标仍用屏幕坐标，内部会换算到 buffer 并裁剪到客户区。
+ * 用于用户程序经 syscall 绘制窗口客户区内容。 */
+void vbeBeginRamWindow(uint32_t* buffer, int stride, int x, int y, int w, int h);
+void vbeEndRamWindow(void);
 
 static inline uint32_t vbeColor(uint8_t r, uint8_t g, uint8_t b) {
     // 最常见的是 0x00RRGGBB

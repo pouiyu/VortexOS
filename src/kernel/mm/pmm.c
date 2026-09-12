@@ -21,8 +21,10 @@ void pmmInit(uint32_t totalMemory) {
     // 全部标记为已使用
     memset(bitmap, 0xFF, bitmapSize);
 
-    // 从 4MB 开始标记为空闲
-    uint32_t kernelEnd = 0x400000;  // 内核结束在 4MB
+    // 从 8MB 开始标记为空闲
+    // [4M,8M) 保留给用户态 GUI 程序(加载地址 0x400000, 见 user.ld)，
+    // 避免运行时动态分配(窗口 surface/合成缓冲)覆盖已加载的 ELF 段。
+    uint32_t kernelEnd = 0x800000;  // 内核+用户程序保留区结束在 8MB
     uint32_t startPage = kernelEnd / PAGE_SIZE;
 
     for (uint32_t page = startPage; page < totalPages; page++) {

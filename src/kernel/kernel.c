@@ -13,6 +13,7 @@
 #include <fs/fat32.h>
 #include <fs/file.h>
 #include <atapi.h>
+#include <disk.h>
 #include "install.h"
 #include "device.h"
 #include <mm/pmm.h>
@@ -28,6 +29,8 @@
 #include <stdio/vbe.h>
 #include <fs/bmp.h>
 #include <wm/window.h>
+#include <wm/wmsvc.h>
+#include "elf/elf.h"
 #include <rtc.h>
 
 uint8_t FG = COLOR_WHITE;
@@ -35,10 +38,6 @@ uint8_t BG = COLOR_BLACK;
 uint8_t HL ;
 uint8_t LL ;
 uint8_t theme;
-
-/* 图形模式 LFB 写屏统计(用于验证拖动条带刷新是否减少写屏) */
-static uint32_t gWMWritePix = 0;
-static uint32_t gWMWriteOps = 0;
 
 // 光标样式(顶部/底部扫描线 0~15)，供菜单设置与 Shell 使用
 uint8_t cursorTop = 14;
@@ -213,10 +212,20 @@ static void putOption(const char* text, bool hover) {
     uint8_t row, col;
     vgaGetCursorPos(&row, &col);
 
-    vgaSetColorByte(hover ? vgaInvertColor(theme) : theme);
+    uint8_t color = hover ? vgaInvertColor(theme) : theme;
+    vgaSetColorByte(color);
 
-    for (int i = col; i < VGA_WIDTH; i++)
-        vgaPutChar(' ');
+    /* 一次填满本行剩余列(批量字符串, 只触发一次 vgaOutputFlush)。
+     * 旧的 `for(...) vgaPutChar(' ')` 逐字符各触发一次整屏 diff,
+     * 帧缓冲模式下一个菜单重绘会累积几百次刷新, 卡成'逐字符打字'。 */
+    int remaining = VGA_WIDTH - col;
+    if (remaining > 0) {
+        static char pad[VGA_WIDTH + 1];
+        int i = 0;
+        while (i < remaining) pad[i++] = ' ';
+        pad[i] = '\0';
+        vgaPutStrColor(pad, color);
+    }
 
     vgaSetCursorPos(row, col);
     vgaPutStr(text);
@@ -529,76 +538,73 @@ static void drawMousePointer(int x, int y) {
     }
 }
 
-/* 指针矩形物理尺寸: 有箭头位图则用其宽高, 否则用内置方块尺寸 */
-static void pointerSize(int* w, int* h) {
-    if (gHasMouseArrow) { *w = (int)gMouseArrow.w; *h = (int)gMouseArrow.h; }
-    else                { *w = MOUSE_POINTER_W;   *h = MOUSE_POINTER_H;   }
-}
-
-/* 把场景快照 scene(RAM, bg+窗口 无指针)中 rect 区域拷贝回 LFB：
- * 用于"移动指针时抹掉旧指针"——只写一个矩形而非整帧。
- * 坐标越界自动裁剪到屏幕内。 */
-static void blitSceneRect(const uint32_t* scene, int x, int y, int w, int h) {
-    int x0 = x, y0 = y, x1 = x + w, y1 = y + h;
-    if (x0 < 0) x0 = 0;
-    if (y0 < 0) y0 = 0;
-    if (x1 > vbeWidth)  x1 = vbeWidth;
-    if (y1 > vbeHeight) y1 = vbeHeight;
-    if (x0 >= x1 || y0 >= y1) return;
-    uint32_t* lfb = (uint32_t*)(uintptr_t)gVbeInfo.lfbAddr;
-    int bw = x1 - x0, bh = y1 - y0;
-    gWMWriteOps++;
-    gWMWritePix += (uint32_t)(bw * bh);
-    for (int yy = 0; yy < bh; yy++) {
-        const uint32_t* s = &scene[(y0 + yy) * vbeWidth + x0];
-        uint32_t* d = &lfb[(y0 + yy) * vbeWidth + x0];
-        for (int xx = 0; xx < bw; xx++) d[xx] = s[xx];
-    }
+/* 用户态 GUI 程序退出(SYS_EXIT → sysExitKernel)后的内核续点：
+ * 恢复文本模式并重绘主菜单，随后正常返回到 graphic_main 的调用方
+ * (handleMainMenuSelect 会再刷新一次菜单，等价于旧 ESC 退出路径)。 */
+static void guiExitToMenu(void) {
+    vbeDisable();
+    drawMainMenu();
 }
 
 /* 整帧把场景快照写回 LFB(窗口位置/内容大范围变化时才用) */
 static void blitSceneFull(const uint32_t* scene, size_t pix) {
     memcpy((void*)(uintptr_t)gVbeInfo.lfbAddr, scene, pix * 4);
-    gWMWriteOps++;
-    gWMWritePix += (uint32_t)pix;
 }
 
-/* 演示窗口内容回调(客户区以绝对屏幕坐标绘制) */
-static void wmTermDraw(Window* w) {
-    int cx = w->x + 8;
-    int ty = w->y + WM_TITLEBAR_H + 8;
-    vbeSetColor(vbeColor(210, 255, 210));
-    vbeDrawStringCJK(cx, ty, "VortexOS Terminal");
-    vbeSetColor(vbeColor(140, 255, 140));
-    vbeDrawStringCJK(cx, ty + 22, "> hello, window!");
-    vbeDrawStringCJK(cx, ty + 44, "> dir");
-    vbeDrawStringCJK(cx, ty + 66, "  system/  usr/  apps/");
-}
+/* ============ Multiboot2 帧缓冲(Tag 8)解析(前向声明) ============ */
 
-static void wmAboutDraw(Window* w) {
-    int cx = w->x + 8;
-    int ty = w->y + WM_TITLEBAR_H + 8;
-    vbeSetColor(vbeColor(30, 30, 30));
-    vbeDrawStringCJK(cx, ty, "VortexOS 窗口管理器");
-    vbeDrawStringCJK(cx, ty + 22, "版本 0.1");
-    vbeDrawStringCJK(cx, ty + 44, "支持: 拖拽 / 聚焦 / 最小化 / 关闭");
-    vbeDrawStringCJK(cx, ty + 66, "按 ESC 返回文本主菜单");
-}
+typedef struct {
+    uint32_t addr;
+    uint32_t pitch;
+    uint32_t width;
+    uint32_t height;
+    uint32_t bpp;
+} MbFbInfo;
+
+/* 启动时保存的 Multiboot2 信息物理地址(GRUB 的 ebx)。启动阶段不切图形模式，
+ * 仅当用户从菜单选 Graphic 时，graphic_main 用它在真机上按需采用引导器帧缓冲。 */
+static unsigned int gMb2Info = 0;
+
+static int mb2FindFramebuffer(uint32_t infoAddr, MbFbInfo* out);
 
 void graphic_main(unsigned int magic, unsigned int addr) {
-    (void)magic; (void)addr;
+    (void)magic;
 
     /* 静态画面构建期间关中断：构建全部走 RAM 缓冲与整帧写 LFB，保持原子。 */
     __asm__ volatile ("cli");
 
     serialPutStr("[G] enter\n");
 
+    /* 真机显卡无 Bochs dispi 端口：若 GRUB 提供了帧缓冲则按需采用之，
+     * 之后再走 vbeSetMode(此时经 sFromBootloader 短路复用该帧缓冲)。 */
+    if (!vbeReady()) {
+        MbFbInfo fb;
+        if (mb2FindFramebuffer(addr ? addr : gMb2Info, &fb) == 0 &&
+            fb.addr && fb.width && fb.height && fb.bpp >= 8) {
+            if (vbeUseBootloaderFramebuffer(fb.addr, fb.pitch, fb.width, fb.height, fb.bpp) == 0)
+                serialPutStr("[G] use bootloader fb\n");
+        }
+    }
+
     if (vbeSetMode(vbeWidth, vbeHeight, 32) != 0) {
+        /* 进入图形失败：必须立即返回。若继续往下走，blitSceneFull 会向
+         * lfbAddr=0 做整帧 memcpy 直接页错误崩死，表现为真机"卡死在进图形"。
+         * 失败原因统一写串口+屏幕(帧缓冲文本仍可显示)，由 kernel_main 回退文本菜单。 */
+        serialPutStr("[G] vbeSetMode FAILED (no usable framebuffer)\n");
         vgaClear();
-        messageBox("Can't enter graphical mode\n");
+        vgaPutStr("Can't enter graphical mode (no framebuffer)\n");
+        vgaOutputFlush();
+        /* 进入本函数时已 cli；失败返回前必须重新开中断，否则回到静态文本菜单
+         * (drawMainMenu)后键盘 IRQ 永不触发，表现为"点按键无响应/卡死"。 */
+        __asm__ volatile ("sti");
         return;
     }
     serialPutStr("[G] vbeSetMode ok\n");
+
+    /* 进入图形模式时才初始化 PS/2 鼠标。启动早期跳过是为避免老笔记本 DELL EC
+     * 对 8042 命令口写(0x64)敏感挂起；此处系统已稳定且是用户主动进入图形，
+     * 带快速超时的安全初始化即使失败也不阻塞(无 PS/2 鼠标时快速返回，键盘可退出)。 */
+    mouseInit();
 
     BmpImage wallpaper;
     bool hasWallpaper = (bmpLoad("/system/images/wallpaper.bmp", &wallpaper) == 0);
@@ -626,8 +632,6 @@ void graphic_main(unsigned int magic, unsigned int addr) {
         vbeDrawBitmap(0, 0, wallpaper.pixels, wallpaper.w, wallpaper.h);
     if (hasTaskbar)
         vbeDrawBitmap(0, vbeHeight - taskbar.h, taskbar.pixels, taskbar.w, taskbar.h);
-    vbeSetColor(vbeColor(255, 255, 255));
-    vbeDrawStringCJK(20, 20, "VortexOS 操作系统");
     vbeEndRamFrame();
     serialPutStr("[G] bg drawn\n");
 
@@ -637,34 +641,15 @@ void graphic_main(unsigned int magic, unsigned int addr) {
 
     /* 初始化窗口管理器 */
     wmInit(bg, vbeWidth, vbeHeight);
-    /* 创建后再经 wmSetBodyColor 自定义背景色, 演示"窗口背景可运行时配置"：
-     * Terminal 用深色底让浅绿文本可读, Notepad 白底, About 浅灰底。 */
-    int wTerm = wmCreate("Terminal", 60, 70, 380, 240, vbeColor(60, 60, 180), vbeColor(255, 255, 255), wmTermDraw);
-    int wNote = wmCreate("Notepad", 440, 120, 380, 260, vbeColor(40, 130, 70), vbeColor(255, 255, 255), NULL);
-    int wAbout = wmCreate("About", 200, 300, 360, 180, vbeColor(150, 95, 45), vbeColor(255, 255, 255), wmAboutDraw);
-    wmSetBodyColor(wTerm,  vbeColor(24, 24, 24));   /* 深色终端底 */
-    wmSetBodyColor(wNote,  vbeColor(255, 255, 255));/* 白色记事本底 */
-    wmSetBodyColor(wAbout, vbeColor(238, 238, 238));/* 浅灰关于底 */
-    (void)wTerm; (void)wNote; (void)wAbout;
-    serialPutStr("[WM] count=0x");
-    serialPutHex8((uint8_t)wmWindowCount());
-    serialPutStr(" windows\n");
+    /* 窗口由用户态 GUI 程序经 SYS_WM_CREATE 创建，此处不再创建演示窗口 */
 
     /* 合成缓冲：每帧把 bg+可见窗口画入 shadow，再整帧写回 LFB(纯写安全) */
     uint32_t* shadow = (uint32_t*)pmmAllocPages((uint32_t)((bgPix * 4 + 0xFFF) >> 12));
     serialPutStr("[G] shadow alloc\n");
-    /* 拖动期间的"静止背景"缓冲：bg+除被拖窗口外所有窗口，拖动开始构建一次 */
+    /* 拖动"静止背景"：bg+除被拖窗口外所有窗口, 按下拖动时构建一次。
+     * 拖动期间其它窗口不动, 用该缓存直接拷贝, 避免每帧重画其文字(字体渲染是
+     * QEMU 下的 CPU 大头), 是拖动流畅的关键。 */
     uint32_t* dragBack = (uint32_t*)pmmAllocPages((uint32_t)((bgPix * 4 + 0xFFF) >> 12));
-
-    /* ---- 帧率/写屏统计 ----
-     * 用 RTC 秒作为时钟(不触碰系统 PIT，避免影响任务调度)：每累计 1 秒输出
-     * 一次平均帧率，以及该秒内 LFB 总写入像素数与 blit 次数，直观反映拖动时
-     * 的写屏开销是否减少(条带刷新 vs 整帧写)。 */
-    uint32_t gFpsFrames = 0;   /* 当前统计周期内渲染帧数 */
-    RtcTime fpsT0, fpsT1;
-    rtcGetTime(&fpsT0);
-    gWMWritePix = 0;
-    gWMWriteOps = 0;
 
     /* 初始化鼠标: 绑定屏幕尺寸并居中 */
     mouseSetBounds(vbeWidth, vbeHeight);
@@ -674,180 +659,183 @@ void graphic_main(unsigned int magic, unsigned int addr) {
     /* 事件驱动阶段需要接收 IRQ12/键盘，打开中断(静态构建已原子完成) */
     __asm__ volatile ("sti");
 
-    int dragWm = -1;
-    int offx = 0, offy = 0;
-    uint8_t prevButtons = 0;
-    int nx = mouseGetX();
-    int ny = mouseGetY();
-    int lastX = nx, lastY = ny;
-    int pw = 0, ph = 0;
-    pointerSize(&pw, &ph);
-    uint32_t frameTick = 0;
-
-    /* 拖动脏矩形：记录窗口"上一帧位置"，拖动每帧只需重写 旧矩形∪新矩形 */
-    int dragPrevX = 0, dragPrevY = 0, dragPrevW = 0, dragPrevH = 0;
-
     /* 首次渲染：合成场景(bg+窗口, 无指针)到 shadow，整帧写回 LFB，再画指针在中央 */
     wmComposite(shadow);
     blitSceneFull(shadow, bgPix);
-    drawMousePointer(nx, ny);
+    drawMousePointer(mouseGetX(), mouseGetY());
     serialPutStr("[G] first frame drawn\n");
 
-    for (;;) {
-        /* 事件驱动: 无鼠标/键盘事件时让出 CPU(hlt 等待中断) */
-        while (!mouseHasEvent() && !keyboardHasChar())
-            __asm__ volatile ("hlt");
+    /* WM 服务：输入事件循环(拖拽/关闭/最小化/聚焦)、场景合成、LFB 回写与
+     * 鼠标指针绘制全部收敛到 wmsvc，替代旧的内联事件循环。 */
+    wmsvcInit(shadow, dragBack, bgPix);
+    if (gHasMouseArrow)
+        wmsvcSetArrow(gMouseArrow.pixels, gMouseArrow.w, gMouseArrow.h);
 
-        /* 键盘: ESC 退出图形模式返回文本主菜单 */
-        if (keyboardHasChar()) {
-            char c = keyboardGetChar();
-            if (c == KEY_ESC) break;
-        }
-
-        /* 一轮唤醒把队列里的鼠标事件合并处理，产出最终状态；
-         * sceneDirty=true 表示窗口发生移动/关闭/最小化/聚焦，需要整帧重合成。 */
-        bool sceneDirty = false;
-        do {
-            nx = mouseGetX();
-            ny = mouseGetY();
-            uint8_t btn = mouseGetButtons();
-
-            /* 取出并清掉累积位移与 pending 标志(绝对坐标已由中断更新) */
-            int moveDx = 0, moveDy = 0;
-            mouseGetMotion(&moveDx, &moveDy);
-            (void)moveDx; (void)moveDy;
-
-            if (btn & MOUSE_LEFT_BUTTON) {
-                if (!(prevButtons & MOUSE_LEFT_BUTTON)) {
-                    /* 按下瞬间: 命中测试并分发 */
-                    int idx = wmHitTest(nx, ny);
-                    if (idx != -1) {
-                        int action = wmHitAction(idx, nx, ny);
-                        if (action == WM_ACT_CLOSE) {
-                            wmClose(idx);
-                            sceneDirty = true;
-                        } else if (action == WM_ACT_MINIMIZE) {
-                            wmMinimize(idx);
-                            sceneDirty = true;
-                        } else if (action == WM_ACT_DRAG) {
-                            idx = wmFocus(idx);              // 置顶聚焦, 取新索引
-                            wmGetRect(idx, &dragPrevX, &dragPrevY,
-                                      &dragPrevW, &dragPrevH); /* 记录拖动起点矩形 */
-                            offx = nx - dragPrevX;
-                            offy = ny - dragPrevY;
-                            /* 焦点置顶改变了遮挡关系, 整帧重画并写一次 LFB:
-                             * 让 LFB 立即反映置顶后的正确画面, 否则条带刷新的
-                             * "中心不变区不重写"会残留旧遮挡轮廓(残影)。 */
-                            wmComposite(shadow);
-                            blitSceneFull(shadow, bgPix);
-                            /* 构建拖动期间的"静止背景"：bg+除本窗口外所有窗口。
-                             * 拖动中窗口内容不变, 每帧只需把本窗口叠画到该 back 上。 */
-                            wmCompositeExcluding(dragBack, idx);
-                            dragWm = idx;                    // 拖动走条带刷新路径
-                        } else {
-                            wmFocus(idx);                    // 客户区: 仅聚焦
-                            sceneDirty = true;
-                        }
-                    }
-                }
-            } else if (prevButtons & MOUSE_LEFT_BUTTON) {
-                /* 松开: 结束拖拽。置 sceneDirty 让下一次渲染整帧对齐,
-                 * 避免松开前合并进同一批的位移未刷导致窗口错位。 */
-                dragWm = -1;
-                sceneDirty = true;
-            }
-
-            prevButtons = btn;
-        } while (mouseHasEvent() || keyboardHasChar());
-
-        /* 关键优化: 不在 while 内每个鼠标事件都 move 窗口。一次唤醒的多个位移
-         * 若只在循环后渲染一次, 条带刷新只覆盖首尾位置、中间扫过的区域(露出
-         * 背景/下层窗口)会漏刷 → 残影。故改为循环外只按最终鼠标位置单次移动,
-         * 让条带精确匹配「单次净位移」, 彻底消除中间漏刷。 */
-        if (dragWm != -1)
-            wmMove(dragWm, nx - offx, ny - offy);
-
-        if (dragWm != -1) {
-            /* 拖动窗口：把"静止背景"(back)拷贝到 shadow，再把被拖窗口叠画上去，
-             * 最后只重写「旧位置∪新位置」的包围盒矩形到 LFB。
-             * 采用整体包围盒而非 L 形条带：条带接缝/中间位移在少数几何下会
-             * 漏刷导致残影与错乱, 包围盒单次矩形刷新写屏略多但绝对无漏洞。 */
-            int curX, curY, curW, curH;
-            wmGetRect(dragWm, &curX, &curY, &curW, &curH);
-            /* 局部恢复旧位置区域: 只把上一帧拖窗所在矩形重置为该处的背景/下层
-             * 窗口(dragBack 内容), 而不是整帧 memcpy 全 3MB。shadow 一直维护为
-             * 完整当前场景, 故逐行拷贝窗口大小的行片段即可。 */
-            for (int rp = dragPrevY; rp < dragPrevY + dragPrevH; rp++) {
-                if (rp < 0 || rp >= vbeHeight) continue;
-                memcpy(&shadow[(size_t)rp * vbeWidth + dragPrevX],
-                       &dragBack[(size_t)rp * vbeWidth + dragPrevX],
-                       (size_t)dragPrevW * 4);
-            }
-            wmCompositeOnly(shadow, dragWm);
-            int bMinX = dragPrevX < curX ? dragPrevX : curX;
-            int bMinY = dragPrevY < curY ? dragPrevY : curY;
-            int bMaxX = (dragPrevX + dragPrevW) > (curX + curW)
-                       ? (dragPrevX + dragPrevW) : (curX + curW);
-            int bMaxY = (dragPrevY + dragPrevH) > (curY + curH)
-                       ? (dragPrevY + dragPrevH) : (curY + curH);
-            /* 半开区间右/下界不含最外一行像素, 而窗口右/下边框恰好落在
-             * 该行; 故右/下各外扩 1 像素, 保证边框线被完整重写覆盖(blitSceneRect
-             * 内部会 clamp 到屏幕, 越界来源是 shadow 的相邻场景, 无害)。 */
-            blitSceneRect(shadow, bMinX, bMinY,
-                          (bMaxX - bMinX) + 1, (bMaxY - bMinY) + 1);
-            /* 抹掉上一帧指针残留：拖动帧把 shadow 重置为 back(不含指针),
-             * 若指针落在包围盒外不会被覆盖, 显式恢复其所在矩形。 */
-            blitSceneRect(shadow, lastX, lastY, pw, ph);
-            drawMousePointer(nx, ny);
-            dragPrevX = curX;
-            dragPrevY = curY;
-            dragPrevW = curW;
-            dragPrevH = curH;
-            lastX = nx;
-            lastY = ny;
-        } else if (sceneDirty) {
-            /* 关闭/最小化/聚焦(非拖动)：重合成整个场景，整帧写 LFB，再画指针 */
-            wmComposite(shadow);
-            blitSceneFull(shadow, bgPix);
-            drawMousePointer(nx, ny);
-        } else if (nx != lastX || ny != lastY) {
-            /* 仅指针移动：从场景快照抹掉"旧指针"矩形，再画新指针。
-             * 只写两个小矩形，避免整帧 3MB 写屏(这是 QEMU 卡顿主因)。 */
-            blitSceneRect(shadow, lastX, lastY, pw, ph);
-            drawMousePointer(nx, ny);
-            lastX = nx;
-            lastY = ny;
-        }
-
-        /* 帧率/写屏统计：每帧记 1, 每秒用 RTC 秒差输出一次。
-         * 仅当该秒确实发生了 LFB 写入才打印, 空闲时不刷屏。 */
-        gFpsFrames++;
-        rtcGetTime(&fpsT1);
-        if (fpsT1.second != fpsT0.second) {
-            if (gWMWriteOps > 0) {
-                serialPutStr("[FPS] ");
-                serialPutDec32(gFpsFrames);
-                serialPutStr("fps pix=");
-                serialPutDec32(gWMWritePix);
-                serialPutStr(" ops=");
-                serialPutDec32(gWMWriteOps);
-                serialPutStr("\n");
-            }
-            gFpsFrames = 0;
-            gWMWritePix = 0;
-            gWMWriteOps = 0;
-            fpsT0 = fpsT1;
-        }
-
-        /* 节流心跳: 每 500 帧打印一次, 证明事件循环在持续运转 */
-        if ((++frameTick % 500) == 0) {
-            serialPutStr("[G] tick\n");
-        }
+    /* 加载用户态 GUI 程序(ELF)并跳转执行。之后窗口的创建/绘制/输入全部由
+     * 用户程序经 SYS_WM_* 系统调用驱动；程序退出(SYS_EXIT)时经 sysExitKernel
+     * 回到 guiExitToMenu 恢复文本主菜单。 */
+    serialPutStr("[G] loading prog\n");
+    uint32_t guiEntry = elfLoad("/system/programs/My_UI.elf");
+    if (!guiEntry) {
+        serialPutStr("load failed prog\n");
+        vbeDisable();
+        return;   /* 加载失败: 回文本菜单 */
     }
+    serialPutStr("[G] jump to prog\n");
+    jumpToUserGui((void*)guiEntry, guiExitToMenu);
+    /* 不会到达 */
+}
+
+/* ============ Multiboot2 帧缓冲(Tag 8)解析 ============ */
+
+/* 解析 Multiboot2 信息结构，在 (base + off) 的 tag 链表里找 framebuffer tag(type 8)，
+ * 回填帧缓冲参数。找不到返回 -1。infoAddr 为引导器传入的 ebx(Multiboot2 信息指针)。 */
+static int mb2FindFramebuffer(uint32_t infoAddr, MbFbInfo* out) {
+    if (infoAddr == 0) return -1;
+    uint32_t total = *(const uint32_t*)(uintptr_t)infoAddr;   /* total_size */
+    uint32_t off   = 8;                                       /* 头 8 字节之后为 tag 链表 */
+    while (off + 8 <= total) {
+        const uint8_t* p  = (const uint8_t*)(uintptr_t)(infoAddr + off);
+        uint32_t type = *(const uint32_t*)(p);
+        uint32_t size = *(const uint32_t*)(p + 4);
+        if (size < 8 || off + size > total) break;
+        if (type == 8 && size >= 32) {
+            const uint8_t* f = p + 8;
+            uint8_t fbtype = *(const uint8_t*)(f + 21);
+            serialPutStr("[MB2] fb tag type=");
+            serialPutHex8(fbtype);
+            serialPutStr(" addr=");
+            serialPutHex32((uint32_t)(*(const uint64_t*)(f)));
+            serialPutStr("\n");
+            /* Multiboot2 framebuffer tag: addr@0, pitch@8, width@12, height@16,
+             * bpp@20, framebuffer_type@21。
+             * 只接受真正的线性 RGB 像素帧缓冲。GRUB 在显卡不支持 VBE 时会把
+             * 文本模式"帧缓冲"(type=2 误标, addr=0xB8000, 80x25)报上来；此前
+             * 把它当像素帧缓冲：vgaOutputFlush 把每个文本单元按 8x16"像素"
+             * 重写回 0xB8000，屏上便出现白色大字残影(VORTEX0)且逐格重绘卡顿。
+             * 像素帧缓冲至少 320x200，且地址不会落在 VGA 文本窗口(0xA0000-
+             * 0xBFFFF)内。 */
+            if (fbtype != 2) return -1;
+            out->addr   = (uint32_t)(*(const uint64_t*)(f));      /* framebuffer_addr 低 32 位 */
+            out->pitch  = *(const uint32_t*)(f + 8);
+            out->width  = *(const uint32_t*)(f + 12);
+            out->height = *(const uint32_t*)(f + 16);
+            out->bpp    = *(const uint8_t*)(f + 20);
+            if (out->width < 320 || out->height < 200) return -1;
+            if (out->addr >= 0xA0000u && out->addr <= 0xBFFFFu) return -1;
+            return 0;
+        }
+        off += size;
+        if (size & 7) off += 8 - (size & 7);   /* tag 按 8 字节对齐 */
+    }
+    return -1;
+}
+
+/* ============ 开机文本启动画面 ============
+ * 把开机初期那次性初始化进度渲染成一个"横幅 + 状态列表 + 底部进度条"的
+ * 干净画面：顶部蓝底横幅带系统名与版本，中部逐模块列出初始化步骤(左侧
+ * 亮色标签 + 右侧绿色 OK)，底部一条随模块推进的进度条。真机上经
+ * vgaSetFramebufferOutput 差异刷到 GRUB 帧缓冲，同样生效。 */
+
+#define BOOT_MODULE_ROW   5     /* 状态列表起始行 */
+#define BOOT_MODULE_LAST  20    /* 状态列表末尾行(行 5..20 = 16 个槽位) */
+#define BOOT_PROGBAR_ROW  22    /* 进度条所在行 */
+#define BOOT_FOOTER_ROW   24    /* 底部就绪提示行 */
+#define BOOT_BAR_COL      12
+#define BOOT_BAR_W        52
+
+static int     bootModuleRow = BOOT_MODULE_ROW;
+static int     bootTotal = 16;
+static int     bootDone = 0;
+static uint8_t bootTagColor;
+static uint8_t bootOkColor;
+
+/* 重画底部进度条 + 百分比：空底用深蓝，已填充段用亮青。 */
+static void bootProgress(void) {
+    int pct  = bootTotal ? bootDone * 100 / bootTotal : 100;
+    int full = pct * BOOT_BAR_W / 100;
+
+    vgaSetCursorPos(BOOT_PROGBAR_ROW, BOOT_BAR_COL - 9);
+    vgaPutStrColor("Loading:", bootTagColor);
+
+    vgaSetCursorPos(BOOT_PROGBAR_ROW, BOOT_BAR_COL - 1);
+    vgaPutCharColor('[', bootTagColor);
+    vgaSetCursorPos(BOOT_PROGBAR_ROW, BOOT_BAR_COL);
+    for (int i = 0; i < BOOT_BAR_W; i++)
+        vgaPutCharColor(' ', vgaEntryColor(COLOR_BLACK, COLOR_BLUE));
+    vgaSetCursorPos(BOOT_PROGBAR_ROW, BOOT_BAR_COL + 1);
+    for (int i = 0; i < full - 2 && i < BOOT_BAR_W; i++)
+        vgaPutCharColor(' ', vgaEntryColor(COLOR_BLACK, COLOR_LIGHT_CYAN));
+    vgaSetCursorPos(BOOT_PROGBAR_ROW, BOOT_BAR_COL + BOOT_BAR_W);
+    vgaPutCharColor(']', bootTagColor);
+
+    /* 百分比(右对齐到 % ) */
+    char pctBuf[4];
+    pctBuf[0] = '0' + pct / 100;
+    pctBuf[1] = '0' + (pct / 10) % 10;
+    pctBuf[2] = '0' + pct % 10;
+    pctBuf[3] = '\0';
+    vgaSetCursorPos(BOOT_PROGBAR_ROW, BOOT_BAR_COL + BOOT_BAR_W + 3);
+    vgaPutStrColor(pctBuf, vgaEntryColor(COLOR_LIGHT_GREY, BG));
+    vgaPutCharColor('%', vgaEntryColor(COLOR_LIGHT_GREY, BG));
+}
+
+/* 画中间横幅(两行蓝底 + 一行亮条)并复位状态。 */
+static void bootInit(void) {
+    bootModuleRow = BOOT_MODULE_ROW;
+    bootDone = 0;
+    bootTotal = 16;
+    bootTagColor = vgaEntryColor(COLOR_WHITE, BG);
+    bootOkColor  = vgaEntryColor(COLOR_GREEN, BG);
+
+    vgaDisableCursor();
+    vgaClear();
+
+    vgaSetCursorPos(0, 0);
+    for (int i = 0; i < VGA_WIDTH; i++)
+        vgaPutCharColor(' ', vgaEntryColor(COLOR_WHITE, COLOR_BLUE));
+
+    /* 蓝色横幅区(第1行)不再绘制 "VortexOS Operating System" 品牌文字 */
+
+    vgaSetCursorPos(2, 0);
+    for (int i = 0; i < VGA_WIDTH; i++)
+        vgaPutCharColor(' ', vgaEntryColor(COLOR_LIGHT_CYAN, COLOR_BLUE));
+
+    vgaSetCursorPos(3, 4);
+    vgaPutStrColor("Initializing system components...", vgaEntryColor(COLOR_LIGHT_GREY, BG));
+
+    bootProgress();
+    vgaOutputFlush();
+}
+
+/* 记录一个已完成的初始化步骤：在列表中画一行"[NAME]" + 右侧绿色"[ OK ]"，并推进进度条。 */
+static void bootModule(const char* name) {
+    if (bootModuleRow > BOOT_MODULE_LAST) bootModuleRow = BOOT_MODULE_LAST;
+    int row = bootModuleRow++;
+
+    vgaSetCursorPos(row, 4);
+    vgaPutCharColor('[', bootTagColor);
+    vgaPutStrColor(name, bootTagColor);
+    vgaPutCharColor(']', bootTagColor);
+    vgaSetCursorPos(row, 72);
+    vgaPutStrColor("[ OK ]", bootOkColor);
+
+    bootDone++;
+    bootProgress();
+    vgaOutputFlush();
+}
+
+/* 全部初始化完成后：进度条拉满并显示底部就绪提示。 */
+static void bootFinish(void) {
+    bootDone = bootTotal;
+    bootProgress();
+    vgaSetCursorPos(BOOT_FOOTER_ROW, 28);
+    vgaPutStrColor("System loaded. Booting desktop...", bootOkColor);
+    vgaOutputFlush();
 }
 
 void kernel_main(unsigned int magic, unsigned int addr) {
-    (void)magic; (void)addr;
+    (void)magic;   /* addr 保存到 gMb2Info，供 graphic_main 按需采用引导器帧缓冲 */
 
     serialPutStr("VortexOS\n");
 
@@ -855,19 +843,42 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     HL = vgaEntryColor(COLOR_LIGHT_BLUE, BG);
     LL = vgaEntryColor(COLOR_LIGHT_GREY, BG);
 
-    vgaPutStr("[GDT] Initialized\n");
-    serialPutStr("[GDT] Initialized\n");
-
+    /* 帧缓冲初始化需要分页(PMM/PAGING)先就绪，故提前到启动画面之前：
+     * - 引导器(GRUB)帧缓冲检测后立即启用 vgaSetFramebufferOutput，使启动画面
+     *   起所有文本都经 RAM 文本模型绘制，规避 GRUB 图形模式下 VGA 文本窗口
+     *   0xB8000 的平面错乱(文字错位、白色大字残影)。 */
+    gMb2Info = addr;
     pmmInit(256 * 1024 * 1024);  // 256MB PMM 最先初始化
     pagingInit();
-    vgaPutStr("[PMM] Initialized\n");
-    vgaPutStr("[PAGING] Initialized\n");
+
+    bool bootFb = false;
+    {
+        MbFbInfo fb;
+        /* 文本渲染(vbeFbTextCell)与 bpp 无关，接受 8/15/16/24/32 任意色深的
+         * GRUB 帧缓冲，保证真机显卡只给 24bpp 时也不会黑屏。32bpp 时还能进
+         * 图形模式；非 32bpp 仅文本，vbeSetMode 会安全失败回文本菜单。 */
+        if (mb2FindFramebuffer(gMb2Info, &fb) == 0 && fb.addr &&
+            fb.width && fb.height && fb.bpp >= 8 &&
+            vbeUseBootloaderFramebuffer(fb.addr, fb.pitch, fb.width, fb.height, fb.bpp) == 0) {
+            bootFb = true;
+        }
+    }
+    if (bootFb) vgaSetFramebufferOutput(true);
+
+    /* 开机启动画面：横幅 + 模块状态 + 进度条 */
+    bootInit();
+
+    bootModule("GDT");
+    serialPutStr("[GDT] Initialized\n");
+
+    bootModule("PMM");
+    bootModule("PAGING");
     serialInit();
-    vgaPutStr("[SERIAL] Initialized\n");
+    bootModule("SERIAL");
 
     static uint8_t kernelStack[4096] __attribute__((aligned(16)));
     tssInit((uint32_t)kernelStack + sizeof(kernelStack));
-    vgaPutStr("[TSS] Initialized\n");
+    bootModule("TSS");
     serialPutStr("[TSS] Initialized\n");
 
     serialPutStr("[PMM] Initialized\n");// 调试信息
@@ -875,35 +886,33 @@ void kernel_main(unsigned int magic, unsigned int addr) {
     serialPutStr("[SERIAL] Initialized\n");// 调试信息
 
     taskInit();
-    vgaPutStr("[TASK] Initialized\n");
+    bootModule("TASK");
     serialPutStr("[TASK] Initialized\n");// 调试信息
 
     vgaInit();
-    vgaPutStr("[VGA] Initialized\n");
+    bootModule("VGA");
     serialPutStr("[VGA] Initialized\n");// 调试信息
     idtInit();
-    vgaPutStr("[IDT] Initialized\n");
+    bootModule("IDT");
     serialPutStr("[IDT] Initialized\n");// 调试信息
     syscallInit();
-    vgaPutStr("[SYSCALL] Initialized\n");
+    bootModule("SYSCALL");
     serialPutStr("[SYSCALL] Initialized\n");// 调试信息
-    vgaPutStr("[EXCEPTIONS] Initialized\n");
+    bootModule("EXCEPTION");
     serialPutStr("[EXCEPTIONS] Initialized\n");// 调试信息
     keyboardInit();
-    vgaPutStr("[KEYBOARD] Initialized\n");
+    bootModule("KEYBOARD");
     serialPutStr("[KEYBOARD] Initialized\n");// 调试信息
-    mouseInit();
-    serialPutStr("[MOUSE] Initialized\n");
+    /* 不在启动时初始化 PS/2 鼠标。部分老笔记本(如 DELL/原 Win7)的 EC 对 OS
+     * 写入 8042 KBC 命令口(0x64, 禁/开 aux、读命令字节)极度敏感，一旦触碰可
+     * 触发 SMI/平台级挂起，整机冻结在 [KEYBOARD] 之后。文本菜单/安装向导用
+     * 不到鼠标，鼠标 IRQ12 处理已随 IDT 挂好，故启动阶段跳过硬件探测以保证不卡死。 */
+    serialPutStr("[MOUSE] skip (deferred)\n");
+    bootModule("MOUSE");/* 屏幕进度标记：证明已越过键盘进入 ATAPI 阶段 */
 
-    /* 显卡信息探测：分辨率/色深/显存在 graphic 菜单与 Device Info 中使用 */
-    if (vbeInit() == 0) {
-        vbeSyncInfo();
-        serialPutStr("[VBE] init ok\n");
-        vgaPutStr("[VBE] init ok\n");
-    } else {
-        serialPutStr("[VBE] init failed\n");
-        vgaPutStr("[VBE] init failed\n");
-    }
+    /* 注册 GRUB module2 送入内存的 system 文件(字体/壁纸/图形程序/安装源)，
+     * 作为无 CD(U盘启动/光驱为 AHCI)与未格式化盘时的统一文件后备。 */
+    fsRegisterModules(addr);
 
     #if 0 /* USB 开发暂停（XHCI 尚未跑通）：临时摘除，避免阻塞启动。恢复后改回 #if 1 */
     /* USB XHCI（输入）中断驱动初始化；HID 键盘注入现有输入管线 */
@@ -921,13 +930,43 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     /* 光驱(ATAPI)初始化：供安装系统/字体加载读取 CD-ROM */
     atapiInit();
+    bootModule("ATAPI");
 
-    if (fat32Init(&fsVolume)) {
-        vgaPutStr("[FAT32] Initialized\n");
+    /* 磁盘抽象层：枚举 AHCI(SATA) 与 legacy IDE 硬盘(真机/VMware 可能只走其一) */
+    diskInit();
+    bootModule("DISK");
+
+    /* 引导器帧缓冲已在启动画面前检测并启用(见 kernel_main 开头)，
+     * 此处保留 DISPLAY 模块标记保持启动画面顺序不变。 */
+    if (bootFb) {
+        serialPutStr("[DISPLAY] use bootloader framebuffer\n");
+        serialPutStr("[VBE] fb addr=");
+        serialPutHex32(gVbeInfo.lfbAddr);
+        serialPutStr(" res=");
+        serialPutHex32(gVbeInfo.xres);
+        serialPutStr("x");
+        serialPutHex32(gVbeInfo.yres);
+        serialPutStr(" bpp=");
+        serialPutHex32(gVbeInfo.bpp);
+        serialPutStr(" pitch=");
+        serialPutHex32(gVbeInfo.pitch);
+        serialPutStr("\n");
+    }
+    bootModule("DISPLAY");
+
+    dDrive* bootDrv = (diskGetCount() > 0) ? diskGetDrive(0) : NULL;
+    if (fat32Init(&fsVolume, bootDrv)) {
         serialPutStr("[FAT32] Initialized\n");// 调试信息
     } else {
-        vgaPutStr("[FAT32] Init failed\n");
         serialPutStr("[FAT32] Init failed\n");// 调试信息
+    }
+    bootModule("FAT32");
+
+    /* fb 模式下，把字体加载进 VBE(文本/菜单绘制需要字形)；帧缓冲文本输出
+     * 已在启动画面前启用，后续安装向导与主菜单直接显示在帧缓冲上。 */
+    if (bootFb) {
+        if (fsVolume.valid) { loadFontIntoVbe(); loadCjkFontIntoVbe(); }
+        else                { loadFontFromCdIntoVbe(); }
     }
 
     /* 交互式安装/更新向导(文本模式)。
@@ -935,6 +974,7 @@ void kernel_main(unsigned int magic, unsigned int addr) {
      *   硬盘未格式化 -> 询问"格式化安装"或"从 CD 运行"
      *   已格式化且 CD 系统不同 -> 询问是否更新；一致则直接继续
      * 安装/更新完成会在向导内自动重启。 */
+    bootFinish();   /* 初始化画面收尾：进度拉满并提示进入桌面 */
     __asm__ volatile ("sti");
     InstallResult installResult = installWizard();
     __asm__ volatile ("cli");
@@ -975,6 +1015,10 @@ void kernel_main(unsigned int magic, unsigned int addr) {
 
     __asm__ volatile ("sti");
     serialPutStr("Enable Interrupt\n");
+
+    /* 开机直接进入图形化系统：加载用户 GUI 程序并跳转。图形初始化失败或
+     * 用户 GUI 程序退出时会 return 回到此处，再进入文本主菜单作为兜底。 */
+    graphic_main(0, 0);
 
     drawMainMenu();
 

@@ -1,0 +1,749 @@
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[FAT32] Initialized
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[ISO] joliet root
+[DEL ] font
+[DEL ] images
+[DIR ] font
+[ISO] joliet root
+[FILE] cjk16.bin
+[ISO] joliet root
+[FILE] font.bin
+[DIR ] images
+[DIR ] mousepointer
+[ISO] joliet root
+[INSTALL] write file failed
+[INSTALL] copy SYSTEM failed
+[ISO] joliet root
+[FONT] installed to /system/font, size=3808 bytes
+[ISO] joliet root
+[FONT] not present on disk
+[FPU] Initialized
+Enable Interrupt
+[G] enter
+[VBE] no framebuffer controller found
+[G] vbeSetMode ok
+mouse: init ok
+mouse init st=14 cb=47
+[G] wallpaper fail
+[G] taskbar fail
+[G] bg alloc
+[G] bg drawn
+[G] shadow alloc
+[G] mouse set
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[FAT32] Initialized
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[ISO] joliet root
+[DEL ] font
+[DEL ] images
+[DIR ] font
+[ISO] joliet root
+[FILE] cjk16.bin
+[ISO] jo[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+liet root
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] CJK loaded into VBE: 1332 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[ISO] joliet root
+[DEL ] font
+[DIR ] font
+[ISO] joliet root
+[FILE] cjk16.bin
+[ISO] joliet root
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] CJK loaded into VBE: 1332 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] CJK loaded into VBE: 1332 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] CJK loaded into VBE: 1332 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[ISO] joliet root
+[DEL ] font
+[DIR ] font
+[ISO] joliet root
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] loaded into VBE: 3808 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The [reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] loaded into VBE: 3808 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[WIZARD] key=0x[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+72
+[WIZARD] key=0x72
+[WIZARD] key=0x00
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] loaded into VBE: 3808 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[ISO] joliet root
+[DEL ] font
+[DIR ] font
+[ISO] joliet root
+[FILE] cjk16.bin
+[ISO] joliet root
+[INSTALL] create file failed
+[INSTALL] copy SYSTEM failed
+[ISO] joliet root
+[INSTALL] create file failed
+[FONT] read back from disk: 3808 bytes
+[FONT] loaded into VBE: 3808 bytes
+[FONT] CJK loaded into VBE: 1332 bytes
+[FONT] uploaded to VGA planes: 3808 bytes
+[FPU] Initialized
+Enable Interrupt
+[G] enter
+[G] vbeSetMode FAILED (no usable framebuffer)
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] loaded into VBE: 3808 bytes
+[FONT] CJK loaded into VBE: 1332 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[WIZARD] key=0x00
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] loaded into VBE: 3808 bytes
+[FONT] CJK loaded into VBE: 1332 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] loaded into VBE: 3808 bytes
+[FONT] CJK loaded into VBE: 1332 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] loaded into VBE: 3808 bytes
+[FONT] CJK loaded into VBE: 1332 bytes
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  The system on the CD-ROM differs
+  from the one on the hard disk.
+  
+  Update the system on the hard disk?
+[ISO] joliet root
+[DEL ] font
+[DIR ] font
+[ISO] joliet root
+[FILE] cjk16.bin
+[ISO] joliet root
+[INSTALL] create file failed
+[INSTALL] copy SYSTEM failed
+[ISO] joliet root
+[INSTALL] create file failed
+[FONT] read back from disk: 3808 bytes
+[FONT] loaded into VBE: 3808 bytes
+[FONT] CJK loaded into VBE: 1332 bytes
+[FONT] uploaded to VGA planes: 3808 bytes
+[FPU] Initialized
+Enable Interrupt
+[G] enter
+[G] vbeSetMode FAILED (no usable framebuffer)
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[DISK] IDE0 master: IDE present
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 1
+[DISPLAY] use bootloader framebuffer
+[FAT32] Initialized
+[FONT] loaded into VBE: 3808 bytes
+[FONT] CJK load[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”
+[reader] wait/retry: 使用“1”个参数调用“Connect”时发生异常:“操作已超时。”

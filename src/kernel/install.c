@@ -10,6 +10,7 @@
 #include <fs/file.h>
 #include <atapi.h>
 #include <ata.h>
+#include <disk.h>
 #include <stdio/vga.h>
 #include <stdio/vbe.h>
 #include <serial.h>
@@ -18,6 +19,15 @@
 #include <kernel.h>
 #include <keyboard.h>
 #include "device.h"
+
+/* 安装目标：用户选定的磁盘与分区(由 selectDiskPartition 填充) */
+static dDrive*    gInstDrive = NULL;
+static Partition  gInstPart;
+static bool       gInstPartValid = false;
+
+/* 默认分区几何(min 分区) */
+#define INST_DEFAULT_PART_GAP 2048   /* MBR 之后留给 GRUB 的 gap */
+#define INST_MIN_PART         512    /* 最小可格式化分区扇区数 */
 
 static void instLog(const char* s) {
     serialPutStr(s);
@@ -40,13 +50,41 @@ static void putDec32(uint32_t value) {
     while (i--) serialPutStr((char[]){ tmp[i], 0 });   // 逐字符输出
 }
 
+/* 十进制数转字符串(用于在向导行内拼装容量/起始值) */
+static void u32ToStr(uint32_t value, char* out) {
+    char tmp[12];
+    int i = 0;
+    if (value == 0) { out[0] = '0'; out[1] = '\0'; return; }
+    while (value) { tmp[i++] = (char)('0' + value % 10); value /= 10; }
+    int j = 0;
+    while (i--) out[j++] = tmp[i];
+    out[j] = '\0';
+}
+
 /* 前向声明(定义在 installSystem 之后) */
 static bool installWriteGrub(void);
 static bool installBootFiles(void);
 
-/* 从光驱读取整个文件到动态内存，返回缓冲区与字节数 */
+/* 从光驱读取整个文件到动态内存，返回缓冲区与字节数。
+ * 无 CD(U盘启动/光驱 AHCI)时回退到 GRUB 模块：CD 风格路径 "SYSTEM/FONT/FONT.BIN"
+ * 转模块虚拟路径 "/system/font/font.bin"(匹配不区分大小写)。 */
 static uint8_t* readCdFile(const char* path, uint32_t* outSize) {
-    if (!iso9660Init()) { instLogLine("[FONT] ISO9660 init failed"); return 0; }
+    if (!iso9660Init()) {
+        char modPath[96];
+        modPath[0] = '/';
+        int i = 0;
+        for (; path[i] && i < 94; i++) modPath[i + 1] = path[i];
+        modPath[i + 1] = '\0';
+        uint32_t sz = 0;
+        const uint8_t* m = fsFindModule(modPath, &sz);
+        if (!m) { instLogLine("[CD] no CD and no module for file"); return 0; }
+        uint8_t* buf = malloc(sz);
+        if (!buf) { instLogLine("[CD] module out of memory"); return 0; }
+        memcpy(buf, m, sz);
+        *outSize = sz;
+        instLog("[CD] from module: "); instLogLine(modPath);
+        return buf;
+    }
 
     uint32_t ext = 0, len = 0;
     if (!iso9660FindFile(path, &ext, &len)) { instLogLine("[FONT] not found on CD"); return 0; }
@@ -74,13 +112,20 @@ static uint8_t* readCdFile(const char* path, uint32_t* outSize) {
 
 /* 安装系统：格式化硬盘 + 装 GRUB 引导 + 拷贝系统文件与字体 */
 bool installSystem(void) {
-    instLogLine("[INSTALL] Formatting disk (FAT32)...");
-    if (!fat32Format(&fsVolume)) { instLogLine("[INSTALL] Format failed"); return false; }
+    if (!gInstPartValid || !gInstDrive) {
+        instLogLine("[INSTALL] no target disk/partition selected");
+        return false;
+    }
+    instLogLine("[INSTALL] Formatting partition (FAT32)...");
+    if (!fat32Format(&fsVolume, gInstDrive, gInstPart.startLba, gInstPart.numSectors)) {
+        instLogLine("[INSTALL] Format failed");
+        return false;
+    }
 
     /* 写完 FAT32 后再把 GRUB 引导代码覆盖到扇区 0(分区表一致，不破坏文件系统) */
     if (!installWriteGrub()) { return false; }
 
-    if (!fat32Init(&fsVolume))   { instLogLine("[INSTALL] Re-init failed"); return false; }
+    if (!fat32Init(&fsVolume, gInstDrive)) { instLogLine("[INSTALL] Re-init failed"); return false; }
 
     if (!installBootFiles()) { return false; }
 
@@ -94,14 +139,28 @@ static bool installWriteGrub(void) {
     uint8_t* mbr = readCdFile(CD_GRUB_MBR_PATH, &sz);
     if (!mbr) { instLogLine("[GRUB] hdd_mbr.bin not on CD"); return false; }
     if (sz != 512) { instLogLine("[GRUB] bad MBR size"); free(mbr); return false; }
-    if (ataWriteSector(0, mbr) != 0) { instLogLine("[GRUB] write MBR failed"); free(mbr); return false; }
+
+    /* boot.img 默认分区表为空，需补写选中的分区条目(否则盘不可引导) */
+    mbrSetEntry(mbr, 0, &gInstPart);
+    if (driveWriteSectors(gInstDrive, 0, 1, mbr) != 0) {
+        instLogLine("[GRUB] write MBR failed");
+        free(mbr);
+        return false;
+    }
     free(mbr);
 
     uint8_t* core = readCdFile(CD_GRUB_CORE_PATH, &sz);
     if (!core) { instLogLine("[GRUB] core.img not on CD"); return false; }
     uint32_t n = (sz + 511) / 512;
+
+    /* 守卫：core.img 不得越过所选分区起始(保留分区完整性) */
+    if (gInstPart.startLba <= GRUB_SECTOR_START + n) {
+        instLogLine("[GRUB] partition too close to boot area");
+        free(core);
+        return false;
+    }
     for (uint32_t i = 0; i < n; i++) {
-        if (ataWriteSector(GRUB_SECTOR_START + i, core + (i * 512)) != 0) {
+        if (driveWriteSectors(gInstDrive, GRUB_SECTOR_START + i, 1, core + (i * 512)) != 0) {
             instLogLine("[GRUB] write core.img failed");
             free(core);
             return false;
@@ -156,14 +215,36 @@ static void lowerName(const char* src, char* out) {
     out[i] = '\0';
 }
 
-/* 安装进度：逐项打印到屏幕与串口，供用户看到正在安装的文件/文件夹 */
+/* 安装进度：串口逐条记录；屏幕则固定在底部一行覆盖显示(含往复进度条动画)，
+ * 避免拷贝大量文件时逐行换行刷屏。SCREEN_PROGRESS_ROW 为固定进度行。 */
+#define SCREEN_PROGRESS_ROW (VGA_HEIGHT - 2)
+static uint32_t sCopyDone = 0;
+
+static void instWriteProgress(const char* tag, const char* name) {
+    char buf[VGA_WIDTH + 1];
+    memset(buf, ' ', VGA_WIDTH);
+    buf[VGA_WIDTH] = '\0';
+    int o = 0;
+    buf[o++] = ' ';
+    buf[o++] = '[';
+    int barLen = 16;
+    int fill = (int)(sCopyDone % (barLen + 1));
+    for (int i = 0; i < barLen; i++) buf[o + i] = (i < fill) ? '#' : '-';
+    o += barLen;
+    buf[o++] = ']';
+    buf[o++] = ' ';
+    for (int i = 0; tag[i] && o < VGA_WIDTH - 1; i++) buf[o++] = tag[i];
+    for (int i = 0; name[i] && o < VGA_WIDTH - 1; i++) buf[o++] = name[i];
+    vgaSetCursorPos(SCREEN_PROGRESS_ROW, 0);
+    vgaPutStr(buf);
+}
+
 static void instProgress(const char* tag, const char* name) {
     serialPutStr(tag);
     serialPutStr(name);
     serialPutStr("\n");
-    vgaPutStr(tag);
-    vgaPutStr(name);
-    vgaPutChar('\n');
+    sCopyDone++;
+    instWriteProgress(tag, name);
 }
 
 static bool sysCopyEntry(const char* name, uint32_t ext, uint32_t len,
@@ -222,10 +303,44 @@ static void clearSystemDir(void) {
     }
 }
 
+/* 无 CD 时的 system 树固定清单(与 system/ 目录及 grub_cd.cfg 的 module2 行一致) */
+static const char* const kModuleSysFiles[] = {
+    "/system/font/font.bin",
+    "/system/font/cjk16.bin",
+    "/system/images/wallpaper.bmp",
+    "/system/images/taskbar.bmp",
+    "/system/images/vortex.bmp",
+    "/system/images/mousepointer/arrow.bmp",
+    "/system/images/mousepointer/textselect.bmp",
+    "/system/programs/My_UI.elf",
+};
+
+/* 从 GRUB 模块拷贝 system 树到硬盘(U盘启动无 CD 时的安装源) */
+static bool installCopySystemFromModules(void) {
+    for (unsigned i = 0; i < sizeof(kModuleSysFiles)/sizeof(kModuleSysFiles[0]); i++) {
+        const char* path = kModuleSysFiles[i];
+        uint32_t sz = 0;
+        const uint8_t* m = fsFindModule(path, &sz);
+        if (!m) { instLogLine("[INSTALL] module missing"); instLogLine(path); return false; }
+        /* 目录 = 路径去掉最后一段 */
+        char dir[96]; strcpy(dir, path);
+        char* sl = strrchr(dir, '/'); if (sl) *sl = '\0';
+        if (!writeDiskFile(dir, path, m, sz)) return false;
+        instProgress("[FILE] ", path);
+    }
+    instLogLine("[INSTALL] /system copied from modules");
+    return true;
+}
+
 /* 把光驱 SYSTEM 目录整树拷贝到硬盘 /system(含字体)，
  * 拷贝前先清空硬盘 /system -> 完整替换 CD 系统文件夹。 */
 static bool installCopySystem(void) {
-    if (!iso9660Init()) { instLogLine("[INSTALL] ISO9660 init failed"); return false; }
+    sCopyDone = 0;   /* 重置拷贝计数，驱动底部进度条 */
+    if (!iso9660Init()) {
+        /* 无 CD(U盘启动/光驱 AHCI)：从 GRUB 模块清单安装 */
+        clearSystemDir();
+        return installCopySystemFromModules();
+    }
 
     clearSystemDir();
 
@@ -397,16 +512,94 @@ void loadFontFromCdIntoVga(void) {
 static void instClear(void);
 static bool cdSystemDiffers(void);
 
-/* 底部固定选项行：Yes = Y/y  No = N/n  Back = Backspace */
-static void instOptionBar(void) {
+/* 设置底部固定选项行(先清空整行再写提示) */
+static void instOptionBar(const char* hint) {
+    static char spaces[VGA_WIDTH + 1];
+    for (int i = 0; i < VGA_WIDTH; i++) spaces[i] = ' ';
+    spaces[VGA_WIDTH] = '\0';
     vgaSetCursorPos(VGA_HEIGHT - 1, 0);
     vgaSetColorByte(theme);
-    for (int i = 0; i < VGA_WIDTH; i++) vgaPutChar(' ');
+    vgaPutStr(spaces);              /* 整行一次输出，避免逐字符全屏 diff */
     vgaSetCursorPos(VGA_HEIGHT - 1, 0);
-    vgaPutStr("Yes = Y/y    No = N/n    Back = Backspace");
+    vgaPutStr(hint);
 }
 
-/* 绘制一页：顶部标题、中央问题、底部选项行(无过多装饰) */
+/* 在指定行水平居中输出字符串 */
+static void instCenterRow(int row, const char* s) {
+    int len = strlen(s);
+    int col = (VGA_WIDTH - len) / 2;
+    if (col < 0) col = 0;
+    vgaSetCursorPos((uint8_t)row, (uint8_t)col);
+    vgaPutStr(s);
+}
+
+/* 绘制顶部标题 + 全宽分隔线 */
+static void instDrawHeader(const char* title) {
+    static char eq[VGA_WIDTH + 1];
+    for (int i = 0; i < VGA_WIDTH - 2; i++) eq[i] = '=';
+    eq[VGA_WIDTH - 2] = '\0';
+    vgaSetCursorPos(2, 0);
+    vgaPutStr("  ");
+    vgaPutStr(title);
+    vgaSetCursorPos(3, 0);
+    vgaPutStr(" ");                 /* 整行分隔线一次输出 */
+    vgaPutStr(eq);
+    vgaPutStr(" \n");
+}
+
+/* 在屏幕中央画一个带边框的选择框，文字行水平居中 */
+static void instBox(int row, const char* const* lines, int nLines) {
+    int maxlen = 0;
+    for (int i = 0; i < nLines; i++) {
+        int len = strlen(lines[i]);
+        if (len > maxlen) maxlen = len;
+    }
+    int innerW = maxlen + 4;
+    if (innerW > VGA_WIDTH - 4) innerW = VGA_WIDTH - 4;
+    int left = (VGA_WIDTH - innerW) / 2;
+
+    /* 顶边框(整行一次输出) */
+    vgaSetCursorPos((uint8_t)row, (uint8_t)left);
+    vgaPutStr("+");
+    {
+        static char dashes[VGA_WIDTH + 1];
+        for (int i = 0; i < VGA_WIDTH; i++) dashes[i] = '-';
+        dashes[VGA_WIDTH] = '\0';
+        dashes[innerW - 2] = '\0';
+        vgaPutStr(dashes);
+    }
+    vgaPutStr("+");
+
+    /* 内容行 */
+    for (int i = 0; i < nLines; i++) {
+        int len = strlen(lines[i]);
+        int pad = (innerW - 2 - len) / 2;
+        char rbuf[VGA_WIDTH + 1];
+        int o = 0;
+        rbuf[o++] = '|';
+        for (int p = 0; p < pad; p++) rbuf[o++] = ' ';
+        for (int k = 0; k < len; k++) rbuf[o++] = lines[i][k];
+        while (o < innerW - 1) rbuf[o++] = ' ';
+        rbuf[o++] = '|';
+        rbuf[o] = '\0';
+        vgaSetCursorPos((uint8_t)(row + 1 + i), (uint8_t)left);
+        vgaPutStr(rbuf);
+    }
+
+    /* 底边框(整行一次输出) */
+    vgaSetCursorPos((uint8_t)(row + 1 + nLines), (uint8_t)left);
+    vgaPutStr("+");
+    {
+        static char dashes2[VGA_WIDTH + 1];
+        for (int i = 0; i < VGA_WIDTH; i++) dashes2[i] = '-';
+        dashes2[VGA_WIDTH] = '\0';
+        dashes2[innerW - 2] = '\0';
+        vgaPutStr(dashes2);
+    }
+    vgaPutStr("+");
+}
+
+/* 绘制一页：顶部标题+分隔线、中央带边框问题、底部选项行 */
 static void instDrawPage(const char* title, const char* const* lines, int nLines) {
     vgaDisableCursor();
     vgaSetColorByte(theme);
@@ -422,20 +615,9 @@ static void instDrawPage(const char* title, const char* const* lines, int nLines
         serialPutStr("\n");
     }
 
-    vgaSetCursorPos(0, 0);
-    vgaPutChar(' ');
-    vgaPutStr(title);
-    vgaPutStr(" \n\n");
-
-    int startRow = 10;
-    for (int i = 0; i < nLines; i++) {
-        int len = strlen(lines[i]);
-        int col = (VGA_WIDTH - len) / 2;
-        if (col < 0) col = 0;
-        vgaSetCursorPos((uint8_t)(startRow + i), (uint8_t)col);
-        vgaPutStr(lines[i]);
-    }
-    instOptionBar();
+    instDrawHeader(title);
+    instBox(7, lines, nLines);
+    instOptionBar("Yes = Y/y    No = N/n    Back = Backspace");
 }
 
 typedef enum { INST_CHOICE_NONE, INST_CHOICE_YES, INST_CHOICE_NO, INST_CHOICE_BACK } InstChoice;
@@ -448,18 +630,181 @@ static InstChoice instAsk(const char* title, const char* const* lines, int nLine
             if (c == 'y' || c == 'Y') return INST_CHOICE_YES;
             if (c == 'n' || c == 'N') return INST_CHOICE_NO;
             if (c == '\b') return INST_CHOICE_BACK;
+            /* 诊断：未识别的按键(无意义或扫描码集合未匹配)打印十六进制，
+             * 便于真机经串口判断键盘模式与按键码 */
+            serialPutStr("[WIZARD] key=0x");
+            serialPutHex8(c);
+            serialPutStr("\n");
         }
         __asm__ volatile ("hlt");
+    }
+}
+
+/* 数字选择(1..max 单选)；Backspace 返回 -1。
+ * 提示条按当前选项数动态生成(不再是 Yes/No)，避免用户困惑按 y/n 无反应。 */
+static int instAskIndex(const char* title, const char* const* lines, int nLines,
+                        int min, int max) {
+    instDrawPage(title, lines, nLines);
+    static char bar[48];
+    strcpy(bar, "Choose = ");
+    {
+        /* 生成 "1..N" 提示 */
+        char lo[4]; u32ToStr((uint32_t)min, lo);
+        char hi[4]; u32ToStr((uint32_t)max, hi);
+        strcat(bar, lo);
+        strcat(bar, "..");
+        strcat(bar, hi);
+    }
+    strcat(bar, " (number key)    Back = Backspace");
+    instOptionBar(bar);
+    for (;;) {
+        if (keyboardHasChar()) {
+            unsigned char c = keyboardGetChar();
+            if (c == '\b') return -1;
+            if (c >= '0' && c <= '9') {
+                int v = c - '0';
+                if (v >= min && v <= max) return v;
+            }
+        }
+        __asm__ volatile ("hlt");
+    }
+}
+
+/* 选磁盘与分区：
+ *   1) 无磁盘 -> 返回 false(向导走“从 CD 运行”)
+ *   2) 选磁盘(编号)
+ *   3) 扫描分区：有分区列出选择，无分区则创建默认分区(自 gap 2048 到盘尾)
+ *   4) 确认格式化(Yes/No)
+ * 结果写入 gInstDrive/gInstPart/gInstPartValid，返回 true 表示已选定目标。 */
+static bool selectDiskPartition(void) {
+    int nd = diskGetCount();
+    if (nd <= 0) { instLogLine("[INSTALL] no writable disk found"); return false; }
+
+    /* ---- 1. 选磁盘 ---- */
+    int dsel;
+    if (nd == 1) {
+        dsel = 1;                       /* 只有一块盘：直接选中，跳过选择页 */
+    } else {
+        static char dNames[8][48];
+        const char* dRows[8];
+        for (int i = 0; i < nd; i++) {
+            dDrive* d = diskGetDrive(i);
+            char cap[16]; u32ToStr(d ? (d->capacityLba / 2 / 1024) : 0, cap);
+            const char* t = (d && d->type == DRIVE_TYPE_AHCI) ? "SATA/AHCI"
+                          : (d && d->type == DRIVE_TYPE_PIO_IDE) ? "IDE" : "Disk";
+            strcpy(dNames[i], t);
+            strcat(dNames[i], " drive, ");
+            strcat(dNames[i], cap);
+            strcat(dNames[i], " MB");
+            dRows[i] = dNames[i];
+        }
+        dsel = instAskIndex("Select disk to format", dRows, nd, 1, nd);
+    }
+    if (dsel <= 0) return false;
+    dDrive* drv = diskGetDrive(dsel - 1);
+    if (!drv) { instLogLine("[INSTALL] bad disk"); return false; }
+    gInstDrive = drv;
+
+    /* ---- 2. 扫描分区 ---- */
+    int np = diskScanPartitions(drv);
+
+    /* ---- 3. 列出分区选择(含“新建整盘分区”选项) ---- */
+    /* 选项数组：已有分区 + 一个“新建”项 */
+    struct { uint32_t start, size, type; bool newPart; } opts[6];
+    int nOpts = 0;
+    for (int i = 0; i < np && nOpts < 6; i++) {
+        opts[nOpts].start   = drv->parts[i].startLba;
+        opts[nOpts].size    = drv->parts[i].numSectors;
+        opts[nOpts].type    = drv->parts[i].type;
+        opts[nOpts].newPart = false;
+        nOpts++;
+    }
+    opts[nOpts].start   = INST_DEFAULT_PART_GAP;
+    opts[nOpts].size    = (drv->capacityLba > INST_DEFAULT_PART_GAP)
+                          ? (drv->capacityLba - INST_DEFAULT_PART_GAP) : 0;
+    opts[nOpts].type    = 0x0C;
+    opts[nOpts].newPart = true;
+    nOpts++;
+
+    int psel;
+    if (nOpts == 1) {
+        /* 盘上没有已有分区：唯一的选项就是“新建整盘分区”，直接选中 */
+        psel = 1;
+    } else {
+        static char pDesc[6][48];
+        const char* pRows[6];
+        for (int i = 0; i < nOpts; i++) {
+            char sz[16]; u32ToStr(opts[i].size / 2 / 1024, sz);
+            char num[4]; u32ToStr((uint32_t)(i + 1), num);
+            strcpy(pDesc[i], num);
+            strcat(pDesc[i], ": ");
+            if (opts[i].newPart) {
+                strcat(pDesc[i], "* create new FAT32 partition");
+            } else {
+                strcat(pDesc[i], "part type=");
+                {
+                    char tb[4];
+                    tb[0] = '0' + (opts[i].type >> 4 < 10 ? opts[i].type >> 4 : 0);
+                    /* 简化显示：直接用十六进制高位 */
+                    tb[1] = '\0';
+                    strcat(pDesc[i], tb);
+                }
+                strcat(pDesc[i], " start=");
+                { char sb[16]; u32ToStr(opts[i].start, sb); strcat(pDesc[i], sb); }
+                strcat(pDesc[i], " size=");
+                strcat(pDesc[i], sz);
+                strcat(pDesc[i], "MB");
+            }
+            pRows[i] = pDesc[i];
+        }
+        psel = instAskIndex("Select partition", pRows, nOpts, 1, nOpts);
+    }
+    if (psel <= 0) return false;
+    gInstPart.startLba   = opts[psel - 1].start;
+    gInstPart.numSectors = opts[psel - 1].size;
+    gInstPart.type       = (uint8_t)opts[psel - 1].type;
+    gInstPart.bootable   = 0x80;
+    gInstPart.slot       = 0;
+
+    if (gInstPart.numSectors < INST_MIN_PART) {
+        instLogLine("[INSTALL] target partition too small");
+        return false;
+    }
+
+    /* ---- 4. 确认格式化 ---- */
+    static const char* const confLines[] = {
+        "This will ERASE the selected partition",
+        "and install VortexOS onto it.",
+        "",
+        "Continue?",
+    };
+    gInstPartValid = false;
+    for (;;) {
+        InstChoice cc = instAsk("Confirm format", confLines, 4);
+        if (cc == INST_CHOICE_YES) {
+            gInstPartValid = true;
+            instLog("[INSTALL] target disk=");
+            putDec32((uint32_t)(psel));          /* 无用回显，占位 */
+            instLog(" partition start=");
+            putDec32(gInstPart.startLba);
+            instLog(" size=");
+            putDec32(gInstPart.numSectors);
+            instLogLine(" sect");
+            return true;
+        }
+        if (cc == INST_CHOICE_NO) return false;
+        /* Back: 重新选分区 */
+        return false;
     }
 }
 
 /* 安装完成提示并短暂停顿后重启 */
 static void instRebootSoon(void) {
     instClear();
-    vgaSetCursorPos(11, 0);
-    int len = strlen("Installation complete. Rebooting...");
-    vgaSetCursorPos(11, (uint8_t)((VGA_WIDTH - len) / 2));
-    vgaPutStr("Installation complete. Rebooting...");
+    instCenterRow(10, "========================================");
+    instCenterRow(11, "  Installation complete!  ");
+    instCenterRow(12, "Rebooting in a few seconds...");
+    instCenterRow(13, "========================================");
     for (volatile int i = 0; i < 20000000; i++) __asm__ volatile ("pause");
     deviceReboot();
 }
@@ -473,16 +818,18 @@ static void instClear(void) {
 /* 全新安装：格式化硬盘 + 装引导 + 整树拷贝 /system */
 static bool installFresh(void) {
     instClear();
-    vgaSetCursorPos(2, 0);
-    vgaPutStr("Formatting and installing VortexOS...\n\n");
+    instCenterRow(3, "Formatting and installing VortexOS...");
+    instCenterRow(4, "Please wait, this may take a moment.");
+    vgaSetCursorPos(7, 0);
     return installSystem();
 }
 
 /* 更新：清空 /system 后整树重拷(不重新分区/格式化) */
 static bool installUpdate(void) {
     instClear();
-    vgaSetCursorPos(2, 0);
-    vgaPutStr("Updating system from CD-ROM...\n\n");
+    instCenterRow(3, "Updating system from CD-ROM...");
+    instCenterRow(4, "Please wait.");
+    vgaSetCursorPos(7, 0);
     return installCopySystem();
 }
 
@@ -504,8 +851,11 @@ static InstallResult installWizardNotFormatted(void) {
     for (;;) {
         InstChoice c = instAsk("VortexOS Installer", fmtLines, 4);
         if (c == INST_CHOICE_YES) {
-            if (installFresh()) { instRebootSoon(); }
-            continue;              /* 安装失败则重新询问 */
+            /* 先选磁盘与分区，再格式化安装(支持多磁盘/多分区) */
+            if (selectDiskPartition()) {
+                if (installFresh()) { instRebootSoon(); }
+            }
+            continue;              /* 未选或安装失败则重新询问 */
         }
         if (c == INST_CHOICE_NO) {
             InstChoice cc = instAsk("VortexOS Installer", cdLines, 4);

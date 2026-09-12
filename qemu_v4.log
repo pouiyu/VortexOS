@@ -1,0 +1,46 @@
+[H[J[1;1Herror: syntax error.
+error: Incorrect command.
+error: syntax error.
+VortexOS
+[MB2] fb tag type=02 addr=000B8000
+[GDT] Initialized
+[TSS] Initialized
+[PMM] Initialized
+[PAGING] Initialized
+[SERIAL] Initialized
+[TASK] Initialized
+[VGA] Initialized
+[IDT] Initialized
+[SYSCALL] Initialized
+[EXCEPTIONS] Initialized
+[KEYBOARD] Initialized
+[MOUSE] skip (deferred)
+[MOD] registered 12 modules
+[MOD] /system/font/font.bin
+[MOD] /system/font/cjk16.bin
+[MOD] /system/images/wallpaper.bmp
+[MOD] /system/images/taskbar.bmp
+[MOD] /system/images/vortex.bmp
+[MOD] /system/images/mousepointer/arrow.bmp
+[MOD] /system/images/mousepointer/textselect.bmp
+[MOD] /system/programs/My_UI.elf
+[MOD] /boot/kernel.bin
+[MOD] /boot/grub/grub.cfg
+[MOD] /grub/core.img
+[MOD] /grub/hdd_mbr.bin
+[ATAPI] found ch=0170 sel=A0 st=58
+[ATAPI] drained identify
+[ATAPI] CD on 0x170
+[AHCI] no SATA/AHCI controller found
+[DISK] total drives: 0
+[DISPLAY] use bootloader framebuffer
+[VBE] fb addr=000B8000 res=00000050x00000019 bpp=00000010 pitch=000000A0
+[FAT32] Init failed
+[ISO] joliet root
+[ISO] joliet root
+
+[WIZARD] VortexOS Installer
+  Hard disk is not formatted.
+  
+  Format the disk and install
+  VortexOS to it?

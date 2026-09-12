@@ -41,4 +41,8 @@ typedef struct {
 // 加载 ELF 文件并创建用户任务
 bool elfLoadAndRun(const char* filename);
 
+// 仅加载 ELF 段到内存(身份映射, 段写入其 vaddr), 返回入口地址; 失败返回 0。
+// 用于用户 GUI 程序: 加载后经 jumpToUserGui 直接跳转执行, 不建任务。
+uint32_t elfLoad(const char* filename);
+
 #endif

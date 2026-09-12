@@ -1,10 +1,17 @@
 #include "fat32.h"
-#include <ata.h>
+#include <disk.h>
 #include <string/string.h>
 #include "path.h"
 #include "file.h"
 
 static uint8_t sectorBuf[512];
+/* 整簇写缓冲：最大一次 DMA 命令覆盖 64 扇区(32KB)，用于批量落盘大文件 */
+static uint8_t clusterBuf[64 * 512];
+
+/* 经磁盘抽象层读写 1 个扇区(整盘绝对 LBA)。宏内联 vol->drive，
+   所有成员函数都以 vol 传卷，展开即得完整调用。 */
+#define readSector(lba, buf)  driveReadSectors((vol)->drive, (lba), 1, (buf))
+#define writeSector(lba, buf) driveWriteSectors((vol)->drive, (lba), 1, (buf))
 
 uint32_t clusterToSector(fat32Volume* vol, uint32_t cluster) {
     return vol->dataStartSector + (cluster - 2) * vol->sectorsPerCluster;
@@ -15,7 +22,7 @@ uint32_t readFatEntry(fat32Volume* vol, uint32_t cluster) {
     uint32_t fatSector = vol->partitionOffset + vol->reservedSectorCount + (fatOffset / vol->bytesPerSector);
     uint32_t entryOffset = fatOffset % vol->bytesPerSector;
 
-    ataReadSector(fatSector, sectorBuf);
+    readSector(fatSector, sectorBuf);
     return *(uint32_t*)(sectorBuf + entryOffset) & 0x0FFFFFFF;
 }
 
@@ -56,8 +63,10 @@ static int parseLfn(fat32LfnEntry* lfn, char* output) {
     return idx;
 }
 
-bool fat32Init(fat32Volume* vol) {
-    if (ataReadSector(0, sectorBuf) != 0) {
+bool fat32Init(fat32Volume* vol, const dDrive* drv) {
+    if (!drv || !drv->present) { vol->valid = false; return false; }
+    vol->drive = drv;
+    if (readSector(0, sectorBuf) != 0) {
         vol->valid = false;
         return false;
     }
@@ -74,7 +83,7 @@ bool fat32Init(fat32Volume* vol) {
     }
     vol->partitionOffset = partitionStart;
 
-    if (ataReadSector(partitionStart, sectorBuf) != 0) {
+    if (readSector(partitionStart, sectorBuf) != 0) {
         vol->valid = false;
         return false;
     }
@@ -149,11 +158,11 @@ static bool fat32WriteFatEntry(fat32Volume* vol, uint32_t cluster, uint32_t valu
                          (fatOffset / vol->bytesPerSector);
     uint32_t entryOffset = fatOffset % vol->bytesPerSector;
 
-    ataReadSector(fatSector, sectorBuf);
+    readSector(fatSector, sectorBuf);
     *(uint32_t*)(sectorBuf + entryOffset) = 
         (*(uint32_t*)(sectorBuf + entryOffset) & 0xF0000000) | (value & 0x0FFFFFFF);
     
-    return ataWriteSector(fatSector, sectorBuf) == 0;
+    return writeSector(fatSector, sectorBuf) == 0;
 }
 
 // 找空闲簇。
@@ -226,7 +235,7 @@ static bool fat32CreateDirEntry(fat32Volume* vol, uint32_t dirCluster,
     while (cluster < FAT32_CLUSTER_END) {
         uint32_t sector = clusterToSector(vol, cluster);
         for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-            ataReadSector(sector + s, sectorBuf);
+            readSector(sector + s, sectorBuf);
             fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
 
             // 查找足够的连续空闲条目
@@ -312,7 +321,7 @@ static bool fat32CreateDirEntry(fat32Volume* vol, uint32_t dirCluster,
             e->fileSize = 0;
 
             // 写回
-            ataWriteSector(sector + s, sectorBuf);
+            writeSector(sector + s, sectorBuf);
             return true;
         }
         cluster = readFatEntry(vol, cluster);
@@ -359,7 +368,7 @@ bool fat32CreateEntry(fat32Volume* vol, const char* path, bool isDirectory) {
     // 如果是目录，初始化 . 和 ..
     if (isDirectory) {
         uint32_t sector = clusterToSector(vol, newCluster);
-        ataReadSector(sector, sectorBuf);
+        readSector(sector, sectorBuf);
         memset(sectorBuf, 0, 512);
 
         fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
@@ -376,7 +385,7 @@ bool fat32CreateEntry(fat32Volume* vol, const char* path, bool isDirectory) {
         entries[1].firstClusterHigh = (uint16_t)(dirCluster >> 16);
         entries[1].firstClusterLow = (uint16_t)(dirCluster & 0xFFFF);
 
-        ataWriteSector(sector, sectorBuf);
+        writeSector(sector, sectorBuf);
     }
 
     return true;
@@ -398,7 +407,7 @@ bool fat32ListDir(fat32Volume* vol, const char* path, char* buf, int bufSize) {
     while (cluster < FAT32_CLUSTER_END) {
         uint32_t sector = clusterToSector(vol, cluster);
         for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-            ataReadSector(sector + s, sectorBuf);
+            readSector(sector + s, sectorBuf);
             fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
             for (int i = 0; i < 16; i++) {
                 fat32DirEntry* e = &entries[i];
@@ -497,7 +506,7 @@ bool fat32FindDirEntry(fat32Volume* vol, uint32_t dirCluster,
     while (cluster < FAT32_CLUSTER_END) {
         uint32_t sector = clusterToSector(vol, cluster);
         for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-            ataReadSector(sector + s, sectorBuf);
+            readSector(sector + s, sectorBuf);
             fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
             for (int i = 0; i < 16; i++) {
                 fat32DirEntry* e = &entries[i];
@@ -605,7 +614,7 @@ static bool fat32RemoveRecursive(fat32Volume* vol, uint32_t cluster, bool isDire
         while (currentCluster < FAT32_CLUSTER_END) {
             uint32_t sector = clusterToSector(vol, currentCluster);
             for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-                ataReadSector(sector + s, sectorBuf);
+                readSector(sector + s, sectorBuf);
                 fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
                 for (int i = 0; i < 16; i++) {
                     fat32DirEntry* e = &entries[i];
@@ -635,7 +644,7 @@ static bool fat32MarkEntryDeleted(fat32Volume* vol, uint32_t dirCluster, const c
     while (cluster < FAT32_CLUSTER_END) {
         uint32_t sector = clusterToSector(vol, cluster);
         for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-            ataReadSector(sector + s, sectorBuf);
+            readSector(sector + s, sectorBuf);
             fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
             for (int i = 0; i < 16; i++) {
                 fat32DirEntry* e = &entries[i];
@@ -656,7 +665,7 @@ static bool fat32MarkEntryDeleted(fat32Volume* vol, uint32_t dirCluster, const c
 
                 if (strcasecmp(entryName, name) == 0) {
                     e->name[0] = 0xE5;
-                    ataWriteSector(sector + s, sectorBuf);
+                    writeSector(sector + s, sectorBuf);
                     return true;
                 }
             }
@@ -736,7 +745,7 @@ bool fat32Rename(fat32Volume* vol, const char* oldPath, const char* newName) {
     while (cluster < FAT32_CLUSTER_END) {
         uint32_t sector = clusterToSector(vol, cluster);
         for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-            ataReadSector(sector + s, sectorBuf);
+            readSector(sector + s, sectorBuf);
             fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
             for (int i = 0; i < 16; i++) {
                 fat32DirEntry* e = &entries[i];
@@ -757,7 +766,7 @@ bool fat32Rename(fat32Volume* vol, const char* oldPath, const char* newName) {
 
                 if (strcasecmp(entryName, oldName) == 0) {
                     memcpy(e->name, shortName, 11);
-                    ataWriteSector(sector + s, sectorBuf);
+                    writeSector(sector + s, sectorBuf);
                     return true;
                 }
             }
@@ -774,7 +783,7 @@ static bool fat32UpdateFileSize(fat32Volume* vol, uint32_t dirCluster,
     while (cluster < FAT32_CLUSTER_END) {
         uint32_t sector = clusterToSector(vol, cluster);
         for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-            ataReadSector(sector + s, sectorBuf);
+            readSector(sector + s, sectorBuf);
             fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
             for (int i = 0; i < 16; i++) {
                 fat32DirEntry* e = &entries[i];
@@ -796,7 +805,7 @@ static bool fat32UpdateFileSize(fat32Volume* vol, uint32_t dirCluster,
 
                 if (strcasecmp(entryName, name) == 0) {
                     e->fileSize = size;
-                    ataWriteSector(sector + s, sectorBuf);
+                    writeSector(sector + s, sectorBuf);
                     return true;
                 }
             }
@@ -906,7 +915,7 @@ bool fat32WriteFile(fat32Volume* vol, const char* path,
             if (toCopy > 512) toCopy = 512;
 
             memcpy(writeBuf, content + offset, toCopy);
-            ataWriteSector(sector, writeBuf);
+            writeSector(sector, writeBuf);
 
             offset += toCopy;
             cluster = readFatEntry(vol, cluster);
@@ -921,7 +930,7 @@ bool fat32WriteFile(fat32Volume* vol, const char* path,
         while (updateCluster < FAT32_CLUSTER_END) {
             uint32_t sector = clusterToSector(vol, updateCluster);
             for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-                ataReadSector(sector + s, sectorBuf);
+                readSector(sector + s, sectorBuf);
                 fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
                 for (int i = 0; i < 16; i++) {
                     fat32DirEntry* e = &entries[i];
@@ -943,7 +952,7 @@ bool fat32WriteFile(fat32Volume* vol, const char* path,
                         e->firstClusterHigh = (uint16_t)(firstCluster >> 16);
                         e->firstClusterLow = (uint16_t)(firstCluster & 0xFFFF);
                         e->fileSize = contentLen;
-                        ataWriteSector(sector + s, sectorBuf);
+                        writeSector(sector + s, sectorBuf);
                         return true;
                     }
                 }
@@ -965,9 +974,9 @@ static bool fat32WriteByte(fat32Volume* vol, FileHandle* file, char byte) {
         uint32_t sector = clusterToSector(vol, cluster);
         uint32_t offset = file->position;
 
-        ataReadSector(sector, sectorBuf);
+        readSector(sector, sectorBuf);
         sectorBuf[offset] = byte;
-        ataWriteSector(sector, sectorBuf);
+        writeSector(sector, sectorBuf);
 
         file->size++;
         file->position++;
@@ -987,9 +996,9 @@ static bool fat32WriteByte(fat32Volume* vol, FileHandle* file, char byte) {
     uint32_t sector = clusterToSector(vol, cluster) + offsetInCluster / vol->bytesPerSector;
     uint32_t offset = offsetInCluster % vol->bytesPerSector;
 
-    ataReadSector(sector, sectorBuf);
+    readSector(sector, sectorBuf);
     sectorBuf[offset] = byte;
-    ataWriteSector(sector, sectorBuf);
+    writeSector(sector, sectorBuf);
 
     file->position++;
     return true;
@@ -1043,53 +1052,51 @@ bool fat32CopyFile(fat32Volume* vol, const char* srcPath, const char* dstPath) {
 /* ===================== 安装系统辅助 ===================== */
 
 /* 在指定 FAT 表内的某块上写入一个簇项(FAT1/FAT2 各自独立写) */
-static bool fmtWriteFatCluster(uint32_t fatStart, uint32_t cluster, uint32_t value) {
+static bool fmtWriteFatCluster(fat32Volume* vol, uint32_t fatStart,
+                               uint32_t cluster, uint32_t value) {
     static uint8_t sec[512];
     uint32_t offset = cluster * 4;
     uint32_t sector = fatStart + offset / 512;
     uint32_t off    = offset % 512;
 
-    if (ataReadSector(sector, sec) != 0) return false;
+    if (readSector(sector, sec) != 0) return false;
     *(uint32_t*)(sec + off) = (*(uint32_t*)(sec + off) & 0xF0000000) | (value & 0x0FFFFFFF);
-    return ataWriteSector(sector, sec) == 0;
+    return writeSector(sector, sec) == 0;
 }
 
-/* 格式化几何参数：固定 64MB 磁盘。
- * 采用 MBR 分区布局以便脱离光驱引导：
- *   扇区 0     = MBR(分区表 + 引导标志 + 0x55AA)
- *   扇区 1~2047= gap(供 GRUB core.img 使用；boot.img 由安装阶段写入扇区 0)
- *   扇区 2048 起= FAT32 主分区(partitionOffset = 2048) */
-#define FMT_TOTAL_SECTORS 131072   /* 磁盘总扇区数(64MB) */
-#define FMT_PART_OFFSET   2048     /* 分区起始扇区(保留 gap 给 GRUB) */
-#define FMT_SPC           8
-#define FMT_RESERVED      32
-#define FMT_FATS          2
-#define FMT_FATSECTORS    128
+/* 格式化几何参数：FAT32 格式参数(保留给目标分区)。
+ * MBR 布局：扇区0=MBR；分区起步 FMT_GAP 扇区(供 GRUB core.img)；
+ * 分区内：保留区+2×FAT+根簇。 */
+#define FMT_GAP          2048    /* MBR 到分区起始的 gap(保留给 GRUB) */
+#define FMT_SPC          8
+#define FMT_RESERVED     32
+#define FMT_FATS         2
+#define FMT_FATSECTORS   128
 
-bool fat32Format(fat32Volume* vol) {
+bool fat32Format(fat32Volume* vol, const dDrive* drv,
+                 uint32_t partStartLba, uint32_t partNumSecs) {
+    if (!drv || !drv->present || partNumSecs == 0) { vol->valid = false; return false; }
+    vol->drive = drv;
+
     static const uint8_t zero512[512] = {0};
     uint8_t sec[512];
-    uint32_t partSectors = FMT_TOTAL_SECTORS - FMT_PART_OFFSET;      /* 分区内扇区数 */
-    uint32_t dataStart   = FMT_PART_OFFSET + FMT_RESERVED + FMT_FATS * FMT_FATSECTORS;
+    uint32_t partSectors = partNumSecs;                                  /* 分区内扇区数 */
+    uint32_t dataStart   = partStartLba + FMT_RESERVED + FMT_FATS * FMT_FATSECTORS;
 
-    /* 1. 写 MBR：一个 FAT32 主分区自 LBA2048 起，带引导标志 */
+    /* 1. 写 MBR：一个 FAT32 主分区自 partStartLba 起，带引导标志 */
     memset(sec, 0, 512);
-    sec[510] = 0x55;
-    sec[511] = 0xAA;
-    {
-        uint8_t* pe = &sec[446];
-        pe[0] = 0x80;                                    /* 引导标志 */
-        pe[1] = 0xFE; pe[2] = 0xFF; pe[3] = 0xFF;        /* CHS(忽略) */
-        pe[4] = 0x0C;                                    /* FAT32 LBA */
-        pe[5] = 0xFE; pe[6] = 0xFF; pe[7] = 0xFF;
-        *(uint32_t*)(pe + 8)  = FMT_PART_OFFSET;         /* 起始 LBA */
-        *(uint32_t*)(pe + 12) = partSectors;             /* 分区扇区数 */
-    }
-    if (ataWriteSector(0, sec) != 0) { vol->valid = false; return false; }
+    Partition p;
+    p.bootable   = 0x80;
+    p.type       = 0x0C;
+    p.startLba   = partStartLba;
+    p.numSectors = partSectors;
+    p.slot       = 0;
+    mbrSetEntry(sec, 0, &p);
+    if (writeSector(0, sec) != 0) { vol->valid = false; return false; }
 
     /* 2. 清零分区内保留区、FAT、根簇区域 */
-    for (uint32_t s = FMT_PART_OFFSET; s <= dataStart + FMT_SPC; s++) {
-        if (ataWriteSector(s, zero512) != 0) { vol->valid = false; return false; }
+    for (uint32_t s = partStartLba; s <= dataStart + FMT_SPC; s++) {
+        if (writeSector(s, zero512) != 0) { vol->valid = false; return false; }
     }
 
     /* 3. 写引导扇区(BPB) 到分区起始扇区 */
@@ -1107,8 +1114,8 @@ bool fat32Format(fat32Volume* vol) {
     bs->sectorsPerFat16   = 0;
     bs->sectorsPerTrack   = 63;
     bs->numHeads          = 255;
-    bs->hiddenSectors     = FMT_PART_OFFSET;        /* 分区隐藏扇区数(分区偏移) */
-    bs->totalSectors32    = partSectors;            /* 分区内总扇区数 */
+    bs->hiddenSectors     = partStartLba;        /* 分区隐藏扇区数(分区偏移) */
+    bs->totalSectors32    = partSectors;         /* 分区内总扇区数 */
     bs->sectorsPerFat     = FMT_FATSECTORS;
     bs->extFlags          = 0;
     bs->fsVersion         = 0;
@@ -1121,14 +1128,14 @@ bool fat32Format(fat32Volume* vol) {
     memcpy(bs->fsType, "FAT32   ", 8);
     sec[510] = 0x55;
     sec[511] = 0xAA;
-    if (ataWriteSector(FMT_PART_OFFSET, sec) != 0) { vol->valid = false; return false; }
+    if (writeSector(partStartLba, sec) != 0) { vol->valid = false; return false; }
 
     /* 3. 初始化 FAT1/FAT2 的表头与根簇项 */
     for (uint32_t f = 0; f < FMT_FATS; f++) {
-        uint32_t fatStart = FMT_PART_OFFSET + FMT_RESERVED + f * FMT_FATSECTORS;
-        if (!fmtWriteFatCluster(fatStart, 0, 0x0FFFFFF8)) { vol->valid = false; return false; }
-        if (!fmtWriteFatCluster(fatStart, 1, 0x0FFFFFFF)) { vol->valid = false; return false; }
-        if (!fmtWriteFatCluster(fatStart, 2, 0x0FFFFFFF)) { vol->valid = false; return false; }
+        uint32_t fatStart = partStartLba + FMT_RESERVED + f * FMT_FATSECTORS;
+        if (!fmtWriteFatCluster(vol, fatStart, 0, 0x0FFFFFF8)) { vol->valid = false; return false; }
+        if (!fmtWriteFatCluster(vol, fatStart, 1, 0x0FFFFFFF)) { vol->valid = false; return false; }
+        if (!fmtWriteFatCluster(vol, fatStart, 2, 0x0FFFFFFF)) { vol->valid = false; return false; }
     }
 
     /* 4. 填充卷结构 */
@@ -1139,7 +1146,7 @@ bool fat32Format(fat32Volume* vol) {
     vol->rootCluster        = 2;
     vol->reservedSectorCount = FMT_RESERVED;
     vol->numFats            = FMT_FATS;
-    vol->partitionOffset    = FMT_PART_OFFSET;
+    vol->partitionOffset    = partStartLba;
     vol->dataStartSector    = dataStart;
     vol->rootDirStartSector = dataStart;
     return true;
@@ -1212,18 +1219,29 @@ bool fat32WriteRawFile(fat32Volume* vol, const char* path, const void* data, uin
 
     uint32_t off = 0;
     uint32_t cluster = first;
-    uint8_t wb[512];
 
+    /* 整簇写：按 ≤64 扇区(单次 DMA/命令上限)批量落盘，
+     * 避免逐 512B 扇区 PIO/DMA 事务拖慢大文件拷贝(如 6MB 壁纸)。 */
     while (off < size && cluster < FAT32_CLUSTER_END) {
         uint32_t sector = clusterToSector(vol, cluster);
-        for (uint8_t s = 0; s < vol->sectorsPerCluster && off < size; s++) {
-            memset(wb, 0, 512);
-            uint32_t toCopy = size - off;
-            if (toCopy > 512) toCopy = 512;
-            memcpy(wb, (const uint8_t*)data + off, toCopy);
-            if (ataWriteSector(sector + s, wb) != 0) return false;
-            off += toCopy;
+        uint32_t clusterBytes = (uint32_t)vol->sectorsPerCluster * vol->bytesPerSector;
+        uint32_t used = size - off;
+        if (used > clusterBytes) used = clusterBytes;
+        uint32_t nSecs = (used + 511) / 512;
+
+        for (uint32_t done = 0; done < nSecs; done += 64) {
+            uint32_t batch = nSecs - done;
+            if (batch > 64) batch = 64;
+            uint32_t batchBytes = batch * 512;
+            uint32_t srcBytes = batchBytes;
+            if (done * 512 + srcBytes > used) srcBytes = used - done * 512;
+            memset(clusterBuf, 0, batchBytes);
+            memcpy(clusterBuf, (const uint8_t*)data + off + done * 512, srcBytes);
+            if (driveWriteSectors(vol->drive, sector + done, batch, clusterBuf) != 0)
+                return false;
         }
+
+        off += used;
         cluster = readFatEntry(vol, cluster);
     }
 
@@ -1236,7 +1254,7 @@ bool fat32WriteRawFile(fat32Volume* vol, const char* path, const void* data, uin
     while (uc < FAT32_CLUSTER_END) {
         uint32_t sector = clusterToSector(vol, uc);
         for (uint8_t s = 0; s < vol->sectorsPerCluster; s++) {
-            if (ataReadSector(sector + s, sectorBuf) != 0) return false;
+            if (readSector(sector + s, sectorBuf) != 0) return false;
             fat32DirEntry* entries = (fat32DirEntry*)sectorBuf;
             memset(lfnBuffer, 0, sizeof(lfnBuffer));
             memset(lfnSegments, 0, sizeof(lfnSegments));
@@ -1283,7 +1301,7 @@ bool fat32WriteRawFile(fat32Volume* vol, const char* path, const void* data, uin
                     e->firstClusterHigh = (uint16_t)(first >> 16);
                     e->firstClusterLow  = (uint16_t)(first & 0xFFFF);
                     e->fileSize         = size;
-                    if (ataWriteSector(sector + s, sectorBuf) != 0) return false;
+                    if (writeSector(sector + s, sectorBuf) != 0) return false;
                     return true;
                 }
 
@@ -1301,7 +1319,7 @@ bool fat32WriteRawFile(fat32Volume* vol, const char* path, const void* data, uin
                     e->firstClusterHigh = (uint16_t)(first >> 16);
                     e->firstClusterLow  = (uint16_t)(first & 0xFFFF);
                     e->fileSize         = size;
-                    if (ataWriteSector(sector + s, sectorBuf) != 0) return false;
+                    if (writeSector(sector + s, sectorBuf) != 0) return false;
                     return true;
                 }
 

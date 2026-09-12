@@ -24,44 +24,53 @@ static uint8_t packetBuf[MOUSE_PACKET_SIZE];
 static int packetIndex = 0;
 static bool awaitingSync = true;
 
-/* 等待 8042 输入缓冲可写(status bit1 == 0) */
-static void mouseWaitWrite(void) {
-    for (int i = 0; i < 10000; i++) {
+/* 有界等待次数：真机没有 PS/2 鼠标(如触控板走 I2C/SMBus)时，8042 对 aux 命令
+ * 不会回 ACK。用较小上限让无鼠标时快速超时(每次约数十微秒)，避免图形模式进入
+ * 或启动时长时间空转卡顿。 */
+#define MOUSE_TIMEOUT 4096
+
+/* 等待 8042 输入缓冲可写(status bit1 == 0)；成功 true，超时 false */
+static bool mouseWaitWrite(void) {
+    for (int i = 0; i < MOUSE_TIMEOUT; i++) {
         if (!(inb(MOUSE_COMMAND_PORT) & STAT_IN_BUF_FULL))
-            return;
+            return true;
     }
     serialPutStr("mouse: 8042 write timeout\n");
+    return false;
 }
 
-/* 等待 8042 输出缓冲有数据并读取一字节(不校验内容) */
-static uint8_t mouseWaitByte(void) {
-    for (;;) {
-        if (inb(MOUSE_COMMAND_PORT) & STAT_OUT_BUF_FULL)
-            return inb(MOUSE_DATA_PORT);
+/* 等待 8042 输出缓冲有数据并读取一字节；成功回填 *data 并返回 true，超时 false */
+static bool mouseWaitByte(uint8_t* data) {
+    for (int i = 0; i < MOUSE_TIMEOUT; i++) {
+        if (inb(MOUSE_COMMAND_PORT) & STAT_OUT_BUF_FULL) {
+            if (data) *data = inb(MOUSE_DATA_PORT);
+            return true;
+        }
     }
+    return false;
 }
 
-/* 等待 8042 输出缓冲有数据且读到鼠标 ACK(0xFA) */
-static void mouseWaitRead(void) {
-    for (int i = 0; i < 10000; i++) {
+/* 等待鼠标 ACK(0xFA)；读到 0xFA 返回 true，超时返回 false */
+static bool mouseWaitAck(void) {
+    for (int i = 0; i < MOUSE_TIMEOUT; i++) {
         uint8_t status = inb(MOUSE_COMMAND_PORT);
         if (status & STAT_OUT_BUF_FULL) {
             uint8_t data = inb(MOUSE_DATA_PORT);
-            /* 忽略键盘(状态 0x64 写入应答)与自检数据, 只期待鼠标 ACK(0xFA) */
             if (data == 0xFA)
-                return;
+                return true;
         }
     }
-    serialPutStr("mouse: 8042 read timeout\n");
+    return false;
 }
 
-/* 向鼠标发送一个命令: 先写 0xD4 指示辅助设备, 再写命令字节 */
-static void mouseSendCommand(uint8_t cmd) {
-    mouseWaitWrite();
+/* 向鼠标发送一个命令: 先写 0xD4 指示辅助设备, 再写命令字节, 最后等 ACK。
+ * 任一步失败(无 aux 设备)立即返回 false, 由调用方快速跳过鼠标初始化。 */
+static bool mouseSendCommand(uint8_t cmd) {
+    if (!mouseWaitWrite()) return false;
     outb(MOUSE_COMMAND_PORT, MOUSE_CMD_WRITE_AUX); // 0xD4
-    mouseWaitWrite();
+    if (!mouseWaitWrite()) return false;
     outb(MOUSE_DATA_PORT, cmd);
-    mouseWaitRead();                               // 等待 0xFA ACK
+    return mouseWaitAck();                          // 等待 0xFA ACK
 }
 
 void mouseInit(void) {
@@ -77,7 +86,13 @@ void mouseInit(void) {
      * 并保持设备未禁用(bit4/bit5=0), 写回。仅 0xA8 只开数据传输, 不会触发 IRQ12。 */
     mouseWaitWrite();
     outb(MOUSE_COMMAND_PORT, 0x20);                 // 读 command byte
-    uint8_t cmdByte = mouseWaitByte();              // 返回数据即为 command byte
+    uint8_t cmdByte;
+    if (!mouseWaitByte(&cmdByte)) {
+        /* 读取 command byte 超时：真机没有 PS/2 鼠标(触控板走其它通道)。
+         * 跳过鼠标初始化，保证系统照常启动进入文本菜单。 */
+        serialPutStr("mouse: no aux device, skip init\n");
+        return;
+    }
     cmdByte |= 0x03;                                // bit0 IRQ1 + bit1 IRQ12
     cmdByte &= (uint8_t)~0x30;                      // bit4/bit5=0: 不禁用设备
     mouseWaitWrite();
@@ -91,9 +106,16 @@ void mouseInit(void) {
         inb(MOUSE_DATA_PORT);
     }
 
-    /* 设定鼠标默认配置并启用数据上报 */
-    mouseSendCommand(MOUSE_DEV_SET_DEFAULTS);   // 0xF6
-    mouseSendCommand(MOUSE_DEV_ENABLE_REPORT);  // 0xF4 (开始周期性发送数据)
+    /* 设定鼠标默认配置并启用数据上报。真机没有 PS/2 鼠标(触控板走 I2C/SMBus)时
+     * 不会回 ACK，首个命令即失败并立刻返回，不再空转等待后续命令。 */
+    if (!mouseSendCommand(MOUSE_DEV_SET_DEFAULTS)) {   // 0xF6
+        serialPutStr("mouse: no ACK (set defaults), skip init\n");
+        return;
+    }
+    if (!mouseSendCommand(MOUSE_DEV_ENABLE_REPORT)) {  // 0xF4 (开始周期性发送数据)
+        serialPutStr("mouse: no ACK (enable report), skip init\n");
+        return;
+    }
 
     mouseDX = 0;
     mouseDY = 0;

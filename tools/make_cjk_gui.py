@@ -48,7 +48,7 @@ class CjkFontGui:
 
         # 默认文本（可编辑）
         self.textVar = tk.StringVar(
-            value="漩涡 系统 窗口 操作")
+            value="漩涡 系统 窗口 操作 最小化 最大化 管理器 版本 支持 拖拽 聚焦 关闭 按下 返回 文本 主菜单 测试 程序")
         self.fontPathVar = tk.StringVar(value=UNIFONT_WIN)
         self.fontIndexVar = tk.StringVar(value="0")       # Unifont 只有 index 0
         self.renderVar = tk.StringVar(value=str(DEFAULT_RENDER))

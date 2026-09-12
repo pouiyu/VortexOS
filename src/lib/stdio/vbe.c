@@ -21,6 +21,8 @@
 
 VbeInfo gVbeInfo;
 static bool sReady = false;
+/* 帧缓冲是否由引导器(GRUB Multiboot2 tag)提供：是则不再(也无法)经 dispi 端口改模式 */
+static bool sFromBootloader = false;
 
 /* 8x16 字形表：由 vbeLoadFont() 从 font.bin(每字符17字节: 码+16行)注入，
  * 供 vbeDrawString() 使用。未注入时回退到内置 8x8 点阵。 */
@@ -41,6 +43,14 @@ static uint32_t sColor = 0x00FFFFFF;  /* 默认白色 */
  * 为空时写入真实线性帧缓冲。用于“建一块不受 LFB 可读性影响的全量快照”。 */
 static uint32_t* sTarget = NULL;
 
+/* 窗口客户区 surface 渲染目标：非空时优先级最高，所有绘图函数写入客户区
+ * RAM 像素缓冲。屏幕坐标 (sWinX,sWinY)..(sWinX+sWinW-1, sWinY+sWinH-1)
+ * 对应 buffer 的 [0..sWinH-1][0..sWinW-1]，行宽 sWinStride(像素)。
+ * 绘制坐标仍用屏幕坐标，内部统一换算并裁剪到客户区。 */
+static uint32_t* sWinBuffer = NULL;
+static int       sWinStride = 0;
+static int       sWinX = 0, sWinY = 0, sWinW = 0, sWinH = 0;
+
 void vbeBeginRamFrame(uint32_t* buffer) {
     sTarget = buffer;
 }
@@ -49,8 +59,48 @@ void vbeEndRamFrame(void) {
     sTarget = NULL;
 }
 
-static uint32_t* vbeFb(void) {
-    return sTarget ? sTarget : (uint32_t*)gVbeInfo.lfbAddr;
+void vbeBeginRamWindow(uint32_t* buffer, int stride, int x, int y, int w, int h) {
+    sWinBuffer = buffer;
+    sWinStride = stride;
+    sWinX = x; sWinY = y; sWinW = w; sWinH = h;
+    sTarget = NULL;   /* 窗口目标优先于整帧 RAM 目标 */
+}
+
+void vbeEndRamWindow(void) {
+    sWinBuffer = NULL;
+}
+
+/* 是否有可写的渲染目标(窗口 surface / 已使能的 32bpp 图形模式) */
+static bool vbeRenderable(void) {
+    return sWinBuffer || (gVbeInfo.enabled && gVbeInfo.bpp == 32);
+}
+
+/* 返回屏幕坐标 (x,y) 像素在当前渲染目标中的写入地址；越界返回 NULL。
+ * 内部自动分派到 窗口surface / 整帧RAM / 真实LFB 三种目标。 */
+static uint32_t* vbePixelAddr(int x, int y) {
+    if (sWinBuffer) {
+        int lx = x - sWinX;
+        int ly = y - sWinY;
+        if (lx < 0 || lx >= sWinW || ly < 0 || ly >= sWinH) return NULL;
+        return &sWinBuffer[(size_t)ly * sWinStride + lx];
+    }
+    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32) return NULL;
+    if (x < 0 || y < 0 || (uint32_t)x >= gVbeInfo.xres || (uint32_t)y >= gVbeInfo.yres)
+        return NULL;
+    uint32_t* fb = sTarget ? sTarget : (uint32_t*)gVbeInfo.lfbAddr;
+    uint32_t rowPix = gVbeInfo.pitch ? (gVbeInfo.pitch / 4u) : gVbeInfo.xres;
+    return &fb[(size_t)y * rowPix + x];
+}
+
+/* 当前渲染目标在屏幕坐标系中的可写矩形 [x0,y0] .. [x1,y1) */
+static void vbeTargetClip(int* x0, int* y0, int* x1, int* y1) {
+    if (sWinBuffer) {
+        *x0 = sWinX;  *y0 = sWinY;
+        *x1 = sWinX + sWinW;  *y1 = sWinY + sWinH;
+    } else {
+        *x0 = 0;  *y0 = 0;
+        *x1 = gVbeInfo.xres;  *y1 = gVbeInfo.yres;
+    }
 }
 
 /* ===== 颜色状态 ===== */
@@ -179,6 +229,106 @@ static void vbeMapLfb(void) {
     }
 }
 
+/* ===== 帧缓冲文本低级输出(bpp 无关) =====
+ * 与 32bpp 图形管线解耦：无论 GRUB 提供 8/16/24/32bpp，都能把 80x25 控制台
+ * 文字画上屏(不经过 vbePixelAddr 的 bpp==32 门禁)。真机显卡常在 24/16bpp 下
+ * 提供帧缓冲，此前因强制 32bpp 拒用其帧缓冲导致黑屏。
+ * 只读 gVbeInfo(lfbAddr/pitch/xres/yres/bpp) 与字形表。 */
+
+static void vbeFbStorePixel(int x, int y, uint32_t rgb) {
+    if (!gVbeInfo.lfbAddr || gVbeInfo.bpp == 0) return;
+    if (x < 0 || y < 0 || (uint32_t)x >= gVbeInfo.xres || (uint32_t)y >= gVbeInfo.yres) return;
+    uint32_t pitch = gVbeInfo.pitch ? gVbeInfo.pitch : gVbeInfo.xres * 4u;
+    uint8_t* row = (uint8_t*)gVbeInfo.lfbAddr + (size_t)y * pitch + (size_t)x * (gVbeInfo.bpp / 8u);
+    switch (gVbeInfo.bpp) {
+        case 32:
+            *(uint32_t*)row = rgb;
+            break;
+        case 24:
+            row[0] = (uint8_t)(rgb);         /* B */
+            row[1] = (uint8_t)(rgb >> 8);    /* G */
+            row[2] = (uint8_t)(rgb >> 16);   /* R */
+            break;
+        case 16: {   /* RGB565 */
+            uint32_t r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+            *(uint16_t*)row = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+            break;
+        }
+        case 15: {   /* RGB555 */
+            uint32_t r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+            *(uint16_t*)row = (uint16_t)(((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3));
+            break;
+        }
+        case 8:      /* 8bpp 灰度近似，不一定精确但可辨识文本 */
+            *row = (uint8_t)((((rgb >> 16) & 0xFF) * 77 + ((rgb >> 8) & 0xFF) * 150 +
+                              (rgb & 0xFF) * 29) >> 8);
+            break;
+        default:
+            break;
+    }
+}
+
+/* 直接向帧缓冲填充实心矩形，忽略 32bpp 门禁(bpp 无关) */
+void vbeFbFillRect(int x, int y, int w, int h, uint32_t rgb) {
+    /* 32bpp 快速路径：整行 4 字节连续写入，避免逐像素函数调用+边界检查开销
+     * (vgaOutputFlush 每格背景+字形要写 256 像素，慢路径是卡顿主因) */
+    if (gVbeInfo.lfbAddr && gVbeInfo.bpp == 32) {
+        uint32_t pitch = gVbeInfo.pitch ? gVbeInfo.pitch : gVbeInfo.xres * 4u;
+        int x2 = x + w, y2 = y + h;
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+        if (x2 > (int)gVbeInfo.xres) x2 = (int)gVbeInfo.xres;
+        if (y2 > (int)gVbeInfo.yres) y2 = (int)gVbeInfo.yres;
+        if (x2 <= x || y2 <= y) return;
+        uint32_t stride = pitch / 4u;
+        uint32_t* base = (uint32_t*)gVbeInfo.lfbAddr + (size_t)y * stride + (uint32_t)x;
+        for (int yy = y; yy < y2; yy++) {
+            uint32_t* p = base + (size_t)(yy - y) * stride;
+            for (int xx = x; xx < x2; xx++) p[xx - x] = rgb;
+        }
+        return;
+    }
+    for (int yy = y; yy < y + h; yy++)
+        for (int xx = x; xx < x + w; xx++)
+            vbeFbStorePixel(xx, yy, rgb);
+}
+
+/* 向帧缓冲绘制一个字符格(8xW 字形，前景 fg / 背景 bg)，bpp 无关 */
+void vbeFbTextCell(int x, int y, uint8_t ch, uint32_t fg, uint32_t bg) {
+    int H = sFont8x16 ? 16 : 8;
+    uint8_t rows[16];
+    if (sFont8x16) {
+        for (int i = 0; i < 16; i++) rows[i] = sFontGlyph[ch][i];
+    } else {
+        int idx = (int)(ch - 0x20);
+        if (idx < 0 || idx >= 95) idx = 0;
+        for (int i = 0; i < 8; i++) rows[i] = sFont8x8[idx][i];
+        for (int i = 8; i < 16; i++) rows[i] = 0;
+    }
+    /* 32bpp 快速路径 */
+    if (gVbeInfo.lfbAddr && gVbeInfo.bpp == 32 &&
+        x >= 0 && y >= 0 && x + VBE_FONT_W <= (int)gVbeInfo.xres &&
+        y + H <= (int)gVbeInfo.yres) {
+        uint32_t pitch = gVbeInfo.pitch ? gVbeInfo.pitch : gVbeInfo.xres * 4u;
+        uint32_t stride = pitch / 4u;
+        uint32_t* base = (uint32_t*)gVbeInfo.lfbAddr + (size_t)y * stride + (uint32_t)x;
+        for (int row = 0; row < H; row++) {
+            uint8_t bits = rows[row];
+            uint32_t* p = base + (size_t)row * stride;
+            for (int col = 0; col < VBE_FONT_W; col++)
+                p[col] = (bits & (0x80 >> col)) ? fg : bg;
+        }
+        return;
+    }
+    for (int row = 0; row < H; row++) {
+        uint8_t bits = rows[row];
+        for (int col = 0; col < VBE_FONT_W; col++) {
+            int px = x + col, py = y + row;
+            vbeFbStorePixel(px, py, (bits & (0x80 >> col)) ? fg : bg);
+        }
+    }
+}
+
 int vbeInit(void) {
     if (sReady) return 0;
 
@@ -215,8 +365,33 @@ bool vbeReady(void) {
     return sReady;
 }
 
+/* 使用引导器(GRUB)提供的帧缓冲：真机显卡无 Bochs dispi 端口(BAR0 也不是 LFB)，
+ * 无法经 vbeInit/vbeSetMode 进入图形。此时直接采用 GRUB 已就绪的线性帧缓冲。 */
+int vbeUseBootloaderFramebuffer(uint32_t fbAddr, uint32_t pitch,
+                                uint32_t xres, uint32_t yres, uint32_t bpp) {
+    if (!fbAddr || !xres || !yres) return -1;
+
+    gVbeInfo.lfbAddr  = fbAddr;
+    gVbeInfo.vramSize = (pitch ? pitch : (uint32_t)xres * 4u) * yres;
+    gVbeInfo.pitch    = pitch;
+    gVbeInfo.xres     = (uint16_t)xres;
+    gVbeInfo.yres     = (uint16_t)yres;
+    gVbeInfo.bpp      = (uint16_t)bpp;
+    gVbeInfo.enabled  = 1;
+    sReady            = true;
+    sFromBootloader   = true;
+    /* 立即用真实分辨率同步全局尺寸：帧缓冲文本(vgaOutputFlush)按这两个值把
+     * 80x25 控制台居中。若不同步，早前的启动/菜单文本会用默认 1024x768 的居中
+     * 偏移落笔，随后 vbeSetMode 改成真实尺寸导致整体偏移、旧像素残留成鬼影。 */
+    vbeWidth  = (int)xres;
+    vbeHeight = (int)yres;
+    vbeMapLfb();
+    return 0;
+}
+
 void vbeSyncInfo(void) {
     if (!sReady) vbeInit();
+    if (sFromBootloader) return;   /* 无 dispi 端口可读，信息已在 setup 时填好 */
     /* 显存以 64K 为单位，任何状态都可读 */
     gVbeInfo.vramSize = (uint32_t)vbeRead(VBE_DISPI_MEM64K) * 65536u;
     /* 分辨率/色深仅在图形(LFB)模式下有意义 */
@@ -224,6 +399,7 @@ void vbeSyncInfo(void) {
         gVbeInfo.xres = vbeRead(VBE_DISPI_XRES);
         gVbeInfo.yres = vbeRead(VBE_DISPI_YRES);
         gVbeInfo.bpp  = vbeRead(VBE_DISPI_BPP);
+        gVbeInfo.pitch = (uint32_t)gVbeInfo.xres * 4u;
     }
 }
 
@@ -291,6 +467,17 @@ static void vbeForceTextMode(void) {
 }
 
 int vbeSetMode(uint16_t xres, uint16_t yres, uint16_t bpp) {
+    /* 帧缓冲已由引导器提供并映射：分辨率由 GRUB 决定，无法(也无需)经
+     * dispi 端口重设，直接采用之。图形管线仅支持 32bpp，其他色深返回失败，
+     * 由调用方提示无法进入图形(控制台文本仍可经 vbeFbTextCell 正常显示)。 */
+    if (sFromBootloader) {
+        vbeWidth  = gVbeInfo.xres;
+        vbeHeight = gVbeInfo.yres;
+        if (gVbeInfo.bpp != 32) return -1;
+        gVbeInfo.enabled = 1;
+        return 0;
+    }
+
     if (!vbeReady() && vbeInit() != 0) return -1;
 
     /* 顺序：宽度 → 高度 → 色深 → 使能(带 LFB) */
@@ -302,6 +489,7 @@ int vbeSetMode(uint16_t xres, uint16_t yres, uint16_t bpp) {
     gVbeInfo.xres = vbeRead(VBE_DISPI_XRES);
     gVbeInfo.yres = vbeRead(VBE_DISPI_YRES);
     gVbeInfo.bpp  = vbeRead(VBE_DISPI_BPP);
+    gVbeInfo.pitch = (uint32_t)gVbeInfo.xres * 4u;
     gVbeInfo.enabled = 1;
 
     /* vramSize 可能被 vbeSyncInfo() 用不可靠的 dispi MEM64K 值覆盖成过小值
@@ -315,89 +503,100 @@ int vbeSetMode(uint16_t xres, uint16_t yres, uint16_t bpp) {
 }
 
 void vbeDisable(void) {
+    if (sFromBootloader) {
+        /* 无 dispi 端口：仅标记图形关闭；真机退出图形返回文本菜单由 GRUB 的
+         * 文本模式承担，这里不写端口避免干扰实机显卡状态。 */
+        gVbeInfo.enabled = 0;
+        return;
+    }
     vbeWrite(VBE_DISPI_ENABLE, 0);   /* 回到文本模式 */
     vbeForceTextMode();              /* 显式恢复 80x25 文本模式，弥补个别固件不回文本的情况 */
     gVbeInfo.enabled = 0;
 }
 
-/* 用当前绘制色清屏 */
+/* 用当前绘制色清屏(即填满整个当前渲染目标) */
 void vbeClearScreen(void) {
-    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32) return;
-    uint32_t* fb = (uint32_t*)gVbeInfo.lfbAddr;
-    uint32_t n = gVbeInfo.xres * gVbeInfo.yres;
-    for (uint32_t i = 0; i < n; i++) fb[i] = sColor;
+    if (!vbeRenderable()) return;
+    int x0, y0, x1, y1;
+    vbeTargetClip(&x0, &y0, &x1, &y1);
+    for (int yy = y0; yy < y1; yy++) {
+        uint32_t* row = vbePixelAddr(x0, yy);
+        if (!row) continue;
+        for (int xx = x0; xx < x1; xx++) row[xx - x0] = sColor;
+    }
 }
 
 /* 用当前绘制色绘制单个像素 */
 void vbeDrawPixel(uint32_t x, uint32_t y) {
-    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32) return;
-    if (x >= gVbeInfo.xres || y >= gVbeInfo.yres) return;
-    vbeFb()[y * gVbeInfo.xres + x] = sColor;
+    uint32_t* p = vbePixelAddr((int)x, (int)y);
+    if (p) *p = sColor;
 }
 
-/* 用当前绘制色填充矩形 */
+/* 用当前绘制色填充矩形，自动裁剪到当前渲染目标 */
 void vbeDrawFillRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
-    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32) return;
-    uint32_t* fb = vbeFb();
+    if (!vbeRenderable()) return;
 
-    /* 裁剪到帧缓冲范围，避免越界写 */
-    uint32_t xend = x + w;
-    uint32_t yend = y + h;
-    if (xend > gVbeInfo.xres) xend = gVbeInfo.xres;
-    if (yend > gVbeInfo.yres) yend = gVbeInfo.yres;
-    if (x >= xend || y >= yend) return;
+    /* 与当前渲染目标矩形求交，避免越界写 */
+    int x0, y0, x1, y1;
+    vbeTargetClip(&x0, &y0, &x1, &y1);
+    if ((int)x      > x0) x0 = (int)x;
+    if ((int)y      > y0) y0 = (int)y;
+    if ((int)x + (int)w < x1) x1 = (int)x + (int)w;
+    if ((int)y + (int)h < y1) y1 = (int)y + (int)h;
+    if (x0 >= x1 || y0 >= y1) return;
 
-    for (uint32_t yy = y; yy < yend; yy++) {
-        uint32_t* row = &fb[yy * gVbeInfo.xres + x];
-        for (uint32_t xx = x; xx < xend; xx++)
-            row[xx - x] = sColor;
+    for (int yy = y0; yy < y1; yy++) {
+        uint32_t* row = vbePixelAddr(x0, yy);
+        if (!row) continue;
+        for (int xx = x0; xx < x1; xx++) row[xx - x0] = sColor;
     }
 }
 
+/* 线框矩形：四边画在 (x,y) 起始、宽 w、高 h 的矩形内部，
+ * 右下角止于 x+w-1 / y+h-1，恰好与 vbeDrawFillRect 的覆盖一致，
+ * 不越过边界外那 1 像素(否则窗口右/下边框会冒出 w×h 之外，
+ * 局部刷新时漏刷其残留 → 残影)。 */
 void vbeDrawLineRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
-    vbeDrawLine(x,y,x+w,y);
-    vbeDrawLine(x,y,x,y+h);
-    vbeDrawLine(x+w,y,x+w,y+h);
-    vbeDrawLine(x,y+h,x+w,y+h);
+    if (w < 1 || h < 1) return;
+    uint32_t x1 = x + w - 1;
+    uint32_t y1 = y + h - 1;
+    vbeDrawLine(x, y, x1, y);
+    vbeDrawLine(x, y, x, y1);
+    vbeDrawLine(x1, y, x1, y1);
+    vbeDrawLine(x, y1, x1, y1);
 }
 
-/* 把自顶向下、BGRA(蓝|绿|红|alpha) 的像素缓冲按 Alpha 混合绘制到帧缓冲。
+/* 把自顶向下、BGRA(蓝|绿|红|alpha) 的像素缓冲按 Alpha 混合绘制到当前渲染目标。
  * 越界区域自动裁剪；alpha 为 0 跳过、255 直接覆盖、其余按比例混合。
  * bgra 一行紧接着一行，每像素 4 字节。 */
 void vbeDrawBitmap(uint32_t x, uint32_t y, const uint8_t* bgra, uint32_t w, uint32_t h) {
-    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32 || !bgra) return;
+    if (!vbeRenderable() || !bgra) return;
 
-    uint32_t* fb = vbeFb();
     for (uint32_t row = 0; row < h; row++) {
-        uint32_t yy = y + row;
-        if (yy >= gVbeInfo.yres) break;
         for (uint32_t col = 0; col < w; col++) {
-            uint32_t xx = x + col;
-            if (xx >= gVbeInfo.xres) break;
+            uint32_t* p = vbePixelAddr((int)x + (int)col, (int)y + (int)row);
+            if (!p) continue;
 
-            const uint8_t* p = &bgra[((size_t)row * w + col) * 4];
-            uint32_t b = p[0];
-            uint32_t g = p[1];
-            uint32_t r = p[2];
-            uint32_t a = p[3];
+            const uint8_t* src = &bgra[((size_t)row * w + col) * 4];
+            uint32_t b = src[0];
+            uint32_t g = src[1];
+            uint32_t r = src[2];
+            uint32_t a = src[3];
 
-            size_t idx = (size_t)yy * gVbeInfo.xres + xx;
-            if (a == 0) {
-                continue;
-            }
+            if (a == 0) continue;
             if (a == 255) {
-                fb[idx] = (r << 16) | (g << 8) | b;
+                *p = (r << 16) | (g << 8) | b;
                 continue;
             }
 
             /* Alpha 混合：dst = (src*a + dst*(255-a)) / 255 */
             uint32_t invA = 255 - a;
-            uint32_t dr = (fb[idx] >> 16) & 0xFF;
-            uint32_t dg = (fb[idx] >> 8)  & 0xFF;
-            uint32_t db =  fb[idx]        & 0xFF;
-            fb[idx] = (((r * a + dr * invA) / 255) << 16)
-                    | (((g * a + dg * invA) / 255) << 8)
-                    | ((b * a + db * invA) / 255);
+            uint32_t dr = (*p >> 16) & 0xFF;
+            uint32_t dg = (*p >> 8)  & 0xFF;
+            uint32_t db =  *p        & 0xFF;
+            *p = (((r * a + dr * invA) / 255) << 16)
+               | (((g * a + dg * invA) / 255) << 8)
+               | ((b * a + db * invA) / 255);
         }
     }
 }
@@ -534,7 +733,7 @@ void vbeLoadFont(const uint8_t* data, uint32_t size) {
 /* 在 (x, y) 处用当前绘制色绘制单个字符，返回该字符的横向步进(像素)。
  * 注入 8x16 字体时用 8x16 渲染，否则回退到内置 8x8。 */
 uint16_t vbeDrawChar(uint16_t x, uint16_t y, char c) {
-    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32) return VBE_FONT_W;
+    if (!vbeRenderable()) return VBE_FONT_W;
 
     const uint8_t charH = sFont8x16 ? 16 : 8;
 
@@ -548,16 +747,12 @@ uint16_t vbeDrawChar(uint16_t x, uint16_t y, char c) {
         for (uint8_t i = 8; i < 16; i++) rows[i] = 0;
     }
 
-    uint32_t* fb = vbeFb();
     for (uint8_t row = 0; row < charH; row++) {
-        uint8_t  bits = rows[row];
-        uint16_t yy   = y + row;
-        if (yy >= gVbeInfo.yres) break;
+        uint8_t bits = rows[row];
         for (uint8_t col = 0; col < VBE_FONT_W; col++) {
-            uint16_t xx = x + col;
-            if (xx >= gVbeInfo.xres) break;
-            if (bits & (0x80 >> col))
-                fb[yy * gVbeInfo.xres + xx] = sColor;
+            if (!(bits & (0x80 >> col))) continue;
+            uint32_t* p = vbePixelAddr((int)x + col, (int)y + row);
+            if (p) *p = sColor;
         }
     }
     return VBE_FONT_W;
@@ -656,24 +851,21 @@ static uint32_t utf8Decode(const uint8_t* s, uint32_t len) {
 #define CJK_GLYPH_UPDAWN 0
 
 static uint16_t vbeDrawCjkGlyph(uint16_t x, uint16_t y, const uint8_t* glyph) {
-    if (!gVbeInfo.enabled || gVbeInfo.bpp != 32 || !glyph) return 16;
+    if (!vbeRenderable() || !glyph) return 16;
 
-    uint32_t* fb = vbeFb();
     for (uint16_t row = 0; row < 16; row++) {
         /* 整幅字形上移 CJK_GLYPH_UPDAWN 像素；顶部越界的行(负数)跳过 */
         int yy = (int)y + row - CJK_GLYPH_UPDAWN;
-        if (yy >= (int)gVbeInfo.yres) break;
         if (yy < 0) continue;
         uint8_t hi = glyph[row * 2];
         uint8_t lo = glyph[row * 2 + 1];
         for (uint16_t col = 0; col < 16; col++) {
-            uint16_t xx = x + col;
-            if (xx >= gVbeInfo.xres) break;
             uint8_t bit = (col < 8) ? (uint8_t)(0x80 >> col)
                                     : (uint8_t)(0x80 >> (col - 8));
             uint8_t src = (col < 8) ? hi : lo;
-            if (src & bit)
-                fb[yy * gVbeInfo.xres + xx] = sColor;
+            if (!(src & bit)) continue;
+            uint32_t* p = vbePixelAddr((int)x + col, yy);
+            if (p) *p = sColor;
         }
     }
     return 16;

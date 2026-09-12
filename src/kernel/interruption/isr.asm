@@ -43,6 +43,8 @@ extern keyboardHasChar
 extern keyboardGetChar
 extern serialPutStr
 extern taskTick
+extern syscallDispatch
+extern sysExitKernel
 
 %macro ISR_NOERR 1
 global isr%1
@@ -212,6 +214,21 @@ syscall_entry:
     je .do_write
     cmp ebp, 3
     je .do_exit
+
+    ; 其它系统调用(WM 组等)交给 C 分发器:
+    ; syscallDispatch(ebp, ebx, ecx, edx)，返回值写回保存的 eax 槽。
+    push edx
+    push ecx
+    push ebx
+    push ebp
+    call syscallDispatch
+    add esp, 16
+    ; 写回返回值到 pusha 保存的 eax 槽。
+    ; 此处 esp = 保存 gs 槽(即 P0-48)：压栈序 pusha(edi..eax)→ds,es,fs,gs→4 参。
+    ; popa 最后弹 eax 的槽 = P0-4(压入序第 8 个 = pusha 的 eax)。
+    ; 故偏移 = (P0-4) - (P0-48) = 44。(旧写 esp+28 会落到 pusha 的 esp 槽,
+    ; 用户程序拿到的"返回值"变成系统调用号, 首次依赖返回值的 SYS_WM_CREATE 中招。)
+    mov [esp + 44], eax
     jmp .done
 
 .do_write:
@@ -234,6 +251,7 @@ syscall_entry:
     jmp .done
 
 .do_exit:
+    call sysExitKernel          ; 恢复内核上下文, 不返回
     cli
     hlt
     jmp .do_exit

@@ -1,34 +1,13 @@
 #include "syscall.h"
 #include "interruption/idt.h"
-#include <stdio/vga.h>
-#include <keyboard.h>
+#include <wm/wmsvc.h>
 
-void syscallHandler(uint32_t num, uint32_t arg1, uint32_t arg2) {
-    (void)arg2;
-
-    switch (num) {
-        case SYS_WRITE:
-            vgaPutStr((const char*)arg1);
-            break;
-
-        case SYS_READ: {
-            while (!keyboardHasChar()) {
-                __asm__ volatile ("hlt");
-            }
-            unsigned char c = keyboardGetChar();
-            char* buf = (char*)arg1;
-            if (buf) {
-                buf[0] = c;
-            }
-            break;
-        }
-
-        case SYS_EXIT:
-            vgaClear();
-            vgaPutStr("Program exited.\n");
-            __asm__ volatile ("cli; hlt");
-            for (;;);
-    }
+/* 除 read/write/exit(在 asm 入口内联处理)外的系统调用统一在此分发。
+ * 当前仅接入 WM 服务组；未知调用号返回 -1。 */
+int syscallDispatch(uint32_t num, uint32_t a, uint32_t b, uint32_t c) {
+    if (num >= SYS_WM_CREATE && num <= SYS_WM_GET_POS)
+        return wmsvcHandle(num, a, b, c);
+    return -1;
 }
 
 void syscallInit(void) {

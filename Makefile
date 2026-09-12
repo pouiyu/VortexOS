@@ -19,11 +19,38 @@ ISO_DIR = iso
 BOOT_DIR = $(ISO_DIR)/boot
 GRUB_DIR = $(BOOT_DIR)/grub
 
-# 自动扫描源文件
-C_SRCS = $(shell find $(SRC_DIR) -name "*.c")
+# 自动扫描源文件(src/user 为用户态程序, 独立 ELF, 不链接进内核)
+C_SRCS = $(shell find $(SRC_DIR) -name "*.c" ! -path "$(SRC_DIR)/user/*")
 ASM_SRCS = $(shell find $(SRC_DIR) -name "*.asm")
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(C_SRCS)) \
        $(patsubst $(SRC_DIR)/%.asm, $(BUILD_DIR)/%.o, $(ASM_SRCS))
+
+# ===== 用户态 GUI 程序(独立 ELF)=====
+# 链接地址 0x400000(见 user.ld)，[4M,8M) 已在 pmm.c 保留给用户程序。
+USER_CFLAGS = -m32 -Wall -Wextra -std=c99 -ffreestanding \
+              -fno-pie -fno-pic -fno-stack-protector \
+              -nostdlib -nostartfiles -nodefaultlibs \
+              -nostdinc \
+              -I src/lib \
+              -I src/include \
+              -I src/drivers \
+              -I src/kernel
+
+# ===== 通用用户程序构建: make program NAME=myapp → system/programs/myapp.elf =====
+# 任意 src/user/X.c 自动链接 libgui + libwidget(设计器生成的代码也能直接编译)。
+# 用法(须在 WSL 内或经 wsl 委托):  make program NAME=hello_ui
+$(BUILD_DIR)/user/%.o: $(SRC_DIR)/user/%.c
+	@mkdir -p $(@D)
+	$(CC) $(USER_CFLAGS) -c $< -o $@
+
+system/programs/%.elf: $(SRC_DIR)/user/%.c $(BUILD_DIR)/user/libgui.o $(BUILD_DIR)/user/libwidget.o
+	@mkdir -p $(@D)
+	$(CC) $(USER_CFLAGS) -c $< -o $(BUILD_DIR)/user/$*.o
+	$(LD) -m elf_i386 -T user.ld $(BUILD_DIR)/user/$*.o $(BUILD_DIR)/user/libgui.o $(BUILD_DIR)/user/libwidget.o -o $@
+
+.PHONY: program
+program: system/programs/$(NAME).elf
+	@echo "UI_BUILD_OK -> system/programs/$(NAME).elf"
 
 # 目标文件
 TARGET = kernel.bin
@@ -32,7 +59,7 @@ ISO_TARGET = vortexos.iso
 # QEMU参数
 QEMU = qemu-system-x86_64
 # 用 i440fx 以便光驱/硬盘走 legacy IDE 端口(ATA @0x1F0, ATAPI @0x170)，PIO 方式兼容性最好
-QEMU_FLAGS = -cdrom $(ISO_TARGET) -hda disk.img -m 256M -boot d -machine pc -cpu qemu64 -smp 1 -vga std -d int -D qemu.log -serial stdio
+QEMU_FLAGS = -cdrom $(ISO_TARGET) -hda disk.img -m 256M -boot d -machine pc -cpu qemu64 -smp 2 -vga std -d int -D qemu.log -serial stdio -accel tcg,thread=multi
 QEMU_DEBUG = -s -S -d int -D qemu.log  -no-shutdown  -no-reboot
 QEMU_KVM = -enable-kvm -cpu host
 

@@ -14,7 +14,12 @@ void serialInit(void) {
 }
 
 void serialPutChar(char c) {
-    while (!(inb(COM1_PORT + 5) & 0x20));  // 等待发送缓冲空
+    /* 有界等待发送缓冲空(THR 空=LSR bit5)；真机 COM1 若缺失或状态异常，绝不能
+     * 让串口把整个启动阻塞死。超时(约数十万次轮询)后丢弃该字符继续执行。 */
+    uint32_t guard = 0;
+    while (!(inb(COM1_PORT + 5) & 0x20)) {
+        if (++guard > 200000) return;
+    }
     outb(COM1_PORT, c);
 }
 

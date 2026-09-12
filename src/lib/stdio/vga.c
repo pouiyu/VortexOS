@@ -2,15 +2,107 @@
 #include "stdio.h"
 #include <io.h>
 #include <string/string.h>
+#include <stdio/vbe.h>
 
 // VGA
 
 static uint16_t* videoMemory = (uint16_t*) VGA_MEMORY;
+/* 帧缓冲模式下的 RAM 文本模型：GRUB 图形模式下 VGA 文本窗口(0xB8000)处于
+ * 平面映射状态，经 CPU 读写会把单元格错位/残留成白色大字(0xFFFF 块)。
+ * 进入帧缓冲输出时把文本模型切换到这块纯 RAM，彻底绕开 0xB8000 窗口。 */
+static uint16_t sTextModel[VGA_HEIGHT][VGA_WIDTH];
 static uint8_t cursorRow = 0;
 static uint8_t cursorCol = 0;
 static uint8_t currentColor = 0;
 static uint8_t cursorStyleStart = 0;   // 最近设置的光标样式，供恢复
 static uint8_t cursorStyleEnd = 15;
+
+/* ===== 帧缓冲文本后端 =====
+ * 引导器(GRUB)提供的帧缓冲模式下，VGA 文本平面(0xB8000)不再接显示屏。
+ * 这里把 0xB8000 当作 80x25 文本模型(现有逻辑照常读写)，sFbOut 时把差异
+ * 逐格画到帧缓冲：sPrev 记录上次已推送的镜像，只重画变化的格子，光标单独画方块。 */
+static bool     sFbOut = false;
+static uint16_t sPrev[VGA_HEIGHT][VGA_WIDTH];
+static bool     sCursorVisible = false;
+/* 批处理计数：vgaPutStrColor 循环内抑制逐字符刷新(帧缓冲模式下逐字整屏 diff
+ * + 逐像素写 VRAM 会导致"打字机"式逐字输出)，循环结束统一刷新一次。
+ * 单独的 vgaPutChar 调用(sBatch==0)仍即时刷新，避免 date/异常等纯单字符调用不刷屏。 */
+static int      sBatch = 0;
+
+/* 上次刷新的网格居中偏移：变化时需整帧清除+全量重画，避免换分辨率后残留鬼影 */
+static int      sLastCenterX = -1;
+static int      sLastCenterY = -1;
+
+static const uint32_t sVgaPalette[16] = {
+    0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xAA5500, 0xAAAAAA,
+    0x555555, 0x5555FF, 0x55FF55, 0x55FFFF, 0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF
+};
+
+void vgaSetFramebufferOutput(bool enable) {
+    if (sFbOut == enable) return;
+    sFbOut = enable;
+    if (enable) {
+        /* 切到 RAM 文本模型：把 0xB8000 现有内容搬进镜像(保留此前文本状态)，
+         * 并清洗平面错乱产生的白色残留单元(0xFFFF=白底白字，画面不可见内容)。
+         * 之后所有读写都走 sTextModel，不再触碰有平面映射问题的 VGA 窗口。 */
+        memcpy(sTextModel, (uint16_t*)VGA_MEMORY, sizeof(sTextModel));
+        for (int i = 0; i < VGA_HEIGHT * VGA_WIDTH; i++)
+            if (sTextModel[0][i] == 0xFFFF)
+                sTextModel[0][i] = vgaEntry(' ', currentColor);
+        videoMemory = (uint16_t*)sTextModel;
+        /* 首次推送把整个现有画面当“变化”画出(含此前积压的启动文本) */
+        for (int r = 0; r < VGA_HEIGHT; r++)
+            for (int c = 0; c < VGA_WIDTH; c++)
+                sPrev[r][c] = vgaEntry(' ', currentColor);
+        sCursorVisible = false;
+    } else {
+        /* 回到硬件文本模式：把 RAM 模型写回 0xB8000 文本平面 */
+        memcpy((uint16_t*)VGA_MEMORY, sTextModel, sizeof(sTextModel));
+        videoMemory = (uint16_t*)VGA_MEMORY;
+    }
+    vgaOutputFlush();
+}
+
+void vgaOutputFlush(void) {
+    if (!sFbOut) return;
+
+    int x0 = (vbeWidth  - VGA_WIDTH  * VBE_FONT_W) / 2; if (x0 < 0) x0 = 0;
+    int y0 = (vbeHeight - VGA_HEIGHT * VBE_FONT_H) / 2; if (y0 < 0) y0 = 0;
+
+    /* 分辨率/居中偏移一旦变化，旧网格落笔的像素与新网格错位，其位置不再被任何
+     * 格子覆盖而残留在屏上(鬼影/背景文字)。此时强制全量重画，并先把整帧清除
+     * 成背景色，确保旧偏移处的文字被抹掉。 */
+    if (x0 != sLastCenterX || y0 != sLastCenterY) {
+        sLastCenterX = x0;
+        sLastCenterY = y0;
+        for (int r = 0; r < VGA_HEIGHT; r++)
+            for (int c = 0; c < VGA_WIDTH; c++)
+                sPrev[r][c] = 0xFFFF;                     /* 使其必然 != e, 全量重画 */
+        uint32_t clearBg = sVgaPalette[(currentColor >> 4) & 0x0F];
+        vbeFbFillRect(0, 0, vbeWidth, vbeHeight, clearBg); /* 抹平残留像素 */
+    }
+
+    for (int r = 0; r < VGA_HEIGHT; r++) {
+        for (int c = 0; c < VGA_WIDTH; c++) {
+            uint16_t e = videoMemory[r * VGA_WIDTH + c];
+            if (sPrev[r][c] == e) continue;
+            sPrev[r][c] = e;
+            int px = x0 + c * VBE_FONT_W;
+            int py = y0 + r * VBE_FONT_H;
+            uint32_t fg = sVgaPalette[(e >> 8) & 0x0F];
+            uint32_t bg = sVgaPalette[(e >> 12) & 0x0F];
+            vbeFbFillRect(px, py, VBE_FONT_W, VBE_FONT_H, bg);
+            vbeFbTextCell(px, py, (uint8_t)(e & 0xFF), fg, bg);
+        }
+    }
+
+    if (sCursorVisible) {
+        int px = x0 + cursorCol * VBE_FONT_W;
+        int py = y0 + cursorRow * VBE_FONT_H;
+        uint16_t e = videoMemory[cursorRow * VGA_WIDTH + cursorCol];
+        vbeFbFillRect(px, py, VBE_FONT_W, VBE_FONT_H, sVgaPalette[(e >> 8) & 0x0F]);
+    }
+}
 
 /* ===== 屏幕滚动回看 =====
  * scrollCount  : 本屏会话内已「完成」的行数(光标离开该行即视为完成)
@@ -44,12 +136,14 @@ static void renderScrolledView(void) {
                 videoMemory[idx] = vgaEntry(' ', currentColor);
         }
     }
+    vgaOutputFlush();
 }
 
 // 返回占用显存的行快照并恢复实时视图
 static void restoreLiveView(void) {
     memcpy(videoMemory, liveScreen, VGA_HEIGHT * VGA_WIDTH * sizeof(uint16_t));
     vgaSetCursorPos(cursorRow, cursorCol);
+    vgaOutputFlush();
 }
 
 void vgaScrollView(int delta) {
@@ -156,6 +250,7 @@ void vgaSetCursorStyle(uint8_t start, uint8_t end) {
 }
 
 void vgaDisableCursor(void) {
+    if (sFbOut) sCursorVisible = false;
     outb(VGA_CTRL_REG, VGA_CURSOR_START);
     outb(VGA_DATA_REG, 0x20);
 }
@@ -163,6 +258,7 @@ void vgaDisableCursor(void) {
 void vgaEnableCursor(void) {
     // 禁用(0x20)会覆写起始扫描线寄存器，
     // 因此在启用时恢复上次设置的光标样式，避免样式被改动
+    if (sFbOut) sCursorVisible = true;
     vgaSetCursorStyle(cursorStyleStart, cursorStyleEnd);
 }
 
@@ -171,6 +267,7 @@ void vgaPutColor(void) {
     uint16_t entry = videoMemory[index];
     uint8_t ch = entry & 0xFF;
     videoMemory[index] = vgaEntry(ch, currentColor);
+    vgaOutputFlush();
 }
 
 void vgaFillLineColor(void) {
@@ -182,6 +279,7 @@ void vgaFillLineColor(void) {
     size_t index = (size_t)row * VGA_WIDTH + col;
     for (int i = col; i < VGA_WIDTH; i++)
         videoMemory[index++] = vgaEntry(' ', currentColor);
+    vgaOutputFlush();
 }
 
 void vgaClear(void) {
@@ -196,6 +294,7 @@ void vgaClear(void) {
     cursorRow = 0;
     cursorCol = 0;
     vgaSetCursorPos(0, 0);
+    vgaOutputFlush();
 }
 
 void vgaClearColor(void) {
@@ -205,6 +304,7 @@ void vgaClearColor(void) {
             videoMemory[index] = vgaEntry(videoMemory[index], currentColor);
         }
     }
+    vgaOutputFlush();
 }
 
 void vgaClearFgColor(void) {
@@ -214,6 +314,7 @@ void vgaClearFgColor(void) {
             videoMemory[index] = vgaEntry(videoMemory[index], currentColor>>4);
         }
     }
+    vgaOutputFlush();
 }
 
 void vgaClearBgColor(void) {
@@ -223,6 +324,7 @@ void vgaClearBgColor(void) {
             videoMemory[index] = vgaEntry(videoMemory[index], (currentColor&0x0F)<<4);
         }
     }
+    vgaOutputFlush();
 }
 
 void vgaClearChar(char c) {
@@ -232,6 +334,7 @@ void vgaClearChar(char c) {
             videoMemory[index] = vgaEntry(c, videoMemory[index+1]);
         }
     }
+    vgaOutputFlush();
 }
 
 void vgaPutChar(char c) {
@@ -288,6 +391,8 @@ void vgaPutCharColor(char c, uint8_t color) {
         }
     }
     vgaSetCursorPos(cursorRow, cursorCol);
+    if (sBatch == 0)
+        vgaOutputFlush();
 }
 
 void vgaPutStr(const char* str) {
@@ -295,9 +400,12 @@ void vgaPutStr(const char* str) {
 }
 
 void vgaPutStrColor(const char* str, uint8_t color) {
+    sBatch++;
     while (*str) {
         vgaPutCharColor(*str++, color);
     }
+    sBatch--;
+    vgaOutputFlush();
 }
 
 void vgaScroll(uint8_t lines) {
@@ -315,6 +423,7 @@ void vgaScroll(uint8_t lines) {
             videoMemory[index] = vgaEntry(' ', currentColor);
         }
     }
+    vgaOutputFlush();
 }
 
 void vgaSetColor(uint8_t foreground, uint8_t background) {

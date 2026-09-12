@@ -5,13 +5,15 @@
 #include <io.h>
 #include <serial.h>
 
-/* 尝试次数上限 */
-#define ATAPI_TIMEOUT 80000000
+/* 尝试次数上限：真机上无设备通道读状态返回 0xFF(=BSY 全置位)会空转很久，
+ * 过大的上限会让人误判为死机。100000 次足够慢速光驱响应，空通道也能快速退出。 */
+#define ATAPI_TIMEOUT 100000
 
 /* 探测到的光驱所在通道的命令端口与设备选择位 */
 static uint16_t sCmdBase = 0;
 static uint8_t  sDevSel  = 0xA0;   /* 0xA0=master, 0xB0=slave */
 static bool     sReady   = false;
+static bool     sSelected = false; /* 设备选择已建立，连续读无需每次重选+延时 */
 
 /* 给硬件一点响应时间(迁就慢速光驱) */
 static void atapiDelay(void) {
@@ -54,6 +56,10 @@ static int probeChannel(uint16_t base) {
         atapiDelay();
         outb(base + 7, 0xA1);             /* IDENTIFY PACKET DEVICE */
         atapiDelay();
+
+        /* 悬浮总线(无设备)快速判定：读状态恒为 0xFF(=BSY 全置位)。
+         * 逐个槽位都烧满 ATAPI_TIMEOUT 空转会让真机启动显得"卡死"。 */
+        if (inb(base + 7) == 0xFF) continue;
 
         uint32_t guard = 0;
         while ((inb(base + 7) & 0x80) && (++guard < ATAPI_TIMEOUT)) {}
@@ -123,9 +129,12 @@ static int atapiReadDataPhase(uint8_t* buf, uint32_t* outBc) {
 int atapiReadBlock(uint32_t lba, uint8_t* buf) {
     if (!sReady || !buf) return -1;
 
-    /* 选择设备并等待空闲 */
-    outb(sCmdBase + 6, sDevSel);
-    atapiDelay();
+    /* 仅首次需要选择设备并给它响应时间；连续读时设备选择保持，跳过 2 万次延时循环 */
+    if (!sSelected) {
+        outb(sCmdBase + 6, sDevSel);
+        atapiDelay();
+        sSelected = true;
+    }
     if (atapiWaitNotBusy() != 0) return -1;
 
     outb(sCmdBase + 1, 0);   /* features: PIO */
